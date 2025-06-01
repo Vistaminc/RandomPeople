@@ -193,6 +193,127 @@ random-v2.0/
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 打开一个 Pull Request
 
+## 📦 应用程序打包指南
+
+要将应用程序打包为独立的可执行文件，请按照以下步骤使用PyInstaller：
+
+### 安装PyInstaller
+
+```bash
+pip install pyinstaller
+```
+
+### 创建spec文件
+
+```bash
+pyi-makespec --name "RandomPeople" --windowed --icon=src/assets/icons/app.ico src/main.py
+```
+
+### 修改spec文件
+
+打开生成的`RandomPeople.spec`文件，修改内容如下：
+
+```python
+# -*- mode: python ; coding: utf-8 -*-
+
+block_cipher = None
+
+# 添加所有需要包含的资源文件
+added_files = [
+    ('src/assets/icons/*', 'src/assets/icons'),
+    ('src/assets/sounds/*', 'src/assets/sounds'),
+    ('src/ui/styles/*', 'src/ui/styles'),  # 包含样式表文件
+    ('src/config/*.py', 'src/config'),  # 包含配置模块
+    ('picture/*.png', 'picture'),  # 包含图片资源
+]
+
+a = Analysis(
+    ['start.py'],  # 使用start.py作为入口点
+    pathex=[],
+    binaries=[],
+    datas=added_files,
+    hiddenimports=[
+        # 核心Qt模块
+        'PySide6.QtCore', 
+        'PySide6.QtGui', 
+        'PySide6.QtWidgets',
+        'PySide6.QtSvg',  # 支持SVG图标
+        
+        # 数据处理模块
+        'pandas',  # 处理表格数据
+        'openpyxl',  # Excel支持
+        'json',  # JSON文件支持
+        
+        # 项目自有模块
+        'src.config.settings',
+        'src.ui.main_window',
+        'src.ui.settings_dialog',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(
+    a.pure, 
+    a.zipped_data,
+    cipher=block_cipher
+)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name='RandomPeople',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=False,  # 设置为False以隐藏控制台窗口
+    icon='src/icon.png',  # 使用PNG图标文件
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='RandomPeople',
+)
+```
+
+### 执行打包
+
+```bash
+pyinstaller RandomPeople.spec
+```
+
+### 特别注意事项
+
+1. **资源文件处理**：确保所有资源文件在spec文件中正确指定
+2. **配置文件**：打包后的程序仍会在用户的`%APPDATA%`目录下访问`random_v.ini`配置文件
+3. **依赖项处理**：如有隐式导入的模块，需要在`hiddenimports`中指定
+4. **调试问题**：如遇问题，可临时将`console=True`查看错误信息
+5. **文件大小优化**：可使用`--noupx`参数避免UPX压缩相关问题
+
+### 打包后的文件结构
+
+成功打包后，在`dist/RandomPeople`目录下会生成可执行程序及所有依赖文件。分发给用户时，只需将整个目录打包即可。
+
 ## 许可证
 
 本项目基于MIT许可证开源
