@@ -9,7 +9,7 @@
 ![Python](https://img.shields.io/badge/Python-≥3.10-blue?logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-≥6.5.0-green?logo=qt&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
-![Version](https://img.shields.io/badge/Version-2.0.0-orange)
+![Version](https://img.shields.io/badge/Version-2.0.1-orange)
 
 </div>
 
