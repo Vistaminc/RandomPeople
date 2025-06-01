@@ -2,7 +2,7 @@
 
 # 🎲 随机抽奖系统 V2.0.1
 
-<img src="src/assets/icons/app_icon.png" width="128" height="128">
+<img src="src/icon.png" width="128" height="128">
 
 *一个现代化的随机抽奖应用程序，基于 PySide6 和 PyOneDark 主题*
 
