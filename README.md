@@ -221,7 +221,6 @@ block_cipher = None
 # 添加所有需要包含的资源文件
 added_files = [
     ('src/assets/icons/*', 'src/assets/icons'),
-    ('src/assets/sounds/*', 'src/assets/sounds'),
     ('src/ui/styles/*', 'src/ui/styles'),  # 包含样式表文件
     ('src/config/*.py', 'src/config'),  # 包含配置模块
     ('picture/*.png', 'picture'),  # 包含图片资源
@@ -309,6 +308,41 @@ pyinstaller RandomPeople.spec
 3. **依赖项处理**：如有隐式导入的模块，需要在`hiddenimports`中指定
 4. **调试问题**：如遇问题，可临时将`console=True`查看错误信息
 5. **文件大小优化**：可使用`--noupx`参数避免UPX压缩相关问题
+
+### 解决PySide6依赖问题
+
+如果打包后遇到 `ModuleNotFoundError: No module named 'PySide6'` 错误，请按照以下步骤解决：
+
+1. **创建hook文件**：在项目根目录下创建 `hook-PySide6.py` 文件，内容如下：
+
+```python
+# PyInstaller hook文件，用于正确处理PySide6依赖
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+# 收集PySide6所有子模块
+hiddenimports = collect_submodules('PySide6')
+
+# 收集所有数据文件
+datas = collect_data_files('PySide6')
+```
+
+2. **更新spec文件**：确保 `hookspath=['.']` 在spec文件的 `Analysis` 部分中设置正确
+
+3. **确保读取环境路径**：如果您使用虚拟环境(.venv)，确保在激活环境的情况下运行PyInstaller：
+
+```bash
+# 激活虚拟环境
+.venv\Scripts\activate  # Windows系统
+
+# 然后运行打包命令
+pyinstaller RandomPeople.spec
+```
+
+4. **直接安装PySide6**：如果上述方法仍然不解决问题，请尝试在全局Python环境中安装PySide6，以确保打包工具可以正确读取所有必要的文件：
+
+```bash
+pip install PySide6 --upgrade
+```
 
 ### 打包后的文件结构
 
