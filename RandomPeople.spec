@@ -5,7 +5,6 @@ block_cipher = None
 # 添加所有需要包含的资源文件
 added_files = [
     ('src/assets/icons/*', 'src/assets/icons'),
-    ('src/assets/sounds/*', 'src/assets/sounds'),
     ('src/ui/styles/*', 'src/ui/styles'),  # 包含样式表文件
     ('src/config/*.py', 'src/config'),  # 包含配置模块
     ('picture/*.png', 'picture'),  # 包含图片资源
