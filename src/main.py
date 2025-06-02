@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 
 # 添加项目根目录到系统路径，确保能正确导入模块
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -55,8 +56,13 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("随机抽奖系统")
     
+    # 设置应用图标
+    app_icon = QIcon(":/icons/icon.png")
+    app.setWindowIcon(app_icon)
+    
     # 创建主窗口
     window = MainWindow()
+    window.setWindowIcon(app_icon)
     window.show()
     
     # 运行应用程序

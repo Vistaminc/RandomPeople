@@ -55,7 +55,6 @@ pyz = PYZ(
 exe = EXE(
     pyz,
     a.scripts,
-    [],
     exclude_binaries=True,
     name='RandomPeople',
     debug=False,
@@ -63,8 +62,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,  # 设置为False以隐藏控制台窗口
-    # 暂时移除图标设置以解决格式问题
-    # icon='src/icon.ico',  # PNG格式不被Windows平台支持，需要.ico格式
+    icon='icon.ico',  # PNG格式不被Windows平台支持，需要.ico格式
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
