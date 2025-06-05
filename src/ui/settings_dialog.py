@@ -40,7 +40,7 @@ class SettingsDialog(QDialog):
 
         # 设置窗口属性
         self.setWindowTitle("应用设置")
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(600, 700)
         self.setModal(True)
 
         # 创建UI组件

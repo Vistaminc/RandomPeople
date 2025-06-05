@@ -646,7 +646,23 @@ class MainWindow(QMainWindow):
     
     def _open_settings(self) -> None:
         """打开设置对话框"""
-        # 创建设置对话框
+        # 检查是否启用了密码保护
+        if app_settings.is_password_protected():
+            # 弹出密码输入对话框
+            password, ok = QInputDialog.getText(
+                self,
+                "密码验证",
+                "请输入设置密码：",
+                QLineEdit.Password
+            )
+            
+            # 如果用户取消或密码错误，则不打开设置
+            if not ok or not app_settings.verify_password(password):
+                if ok:  # 用户输入了密码但验证失败
+                    QMessageBox.warning(self, "密码错误", "密码验证失败，无法打开设置")
+                return
+        
+        # 密码验证通过或未启用密码保护，创建设置对话框
         settings_dialog = SettingsDialog(self)
         
         # 连接设置保存信号
