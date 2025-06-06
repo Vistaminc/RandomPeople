@@ -51,7 +51,7 @@ class Settings(QObject):
         
     def _ensure_sections(self) -> None:
         """确保配置文件中的节点存在"""
-        sections = ['General', 'Files', 'DrawSettings', 'UI', 'CustomParams', 'Security']
+        sections = ['General', 'Files', 'DrawSettings', 'UI', 'CustomParams', 'Security', 'Logging']
         for section in sections:
             if not self._config.has_section(section):
                 self._config.add_section(section)
@@ -97,6 +97,16 @@ class Settings(QObject):
         custom_params = self.get('custom_parameters', section='CustomParams')
         if custom_params is None:
             self.set('custom_parameters', {}, section='CustomParams')
+            
+        # 日志设置
+        if not self.get('auto_clean_logs', section='Logging'):
+            self.set('auto_clean_logs', True, section='Logging')  # 默认启用日志自动清理
+            
+        if not self.get('log_clean_days', section='Logging'):
+            self.set('log_clean_days', 7, section='Logging')  # 默认7天清理一次
+            
+        if not self.get('last_log_clean_time', section='Logging'):
+            self.set('last_log_clean_time', '', section='Logging')  # 上次清理时间，初始为空
             
         # 保存配置到文件
         self._save_config()
@@ -370,6 +380,64 @@ class Settings(QObject):
             
         input_hash = hashlib.sha256(password.encode()).hexdigest()
         return input_hash == stored_hash
+
+
+    def is_auto_clean_logs_enabled(self) -> bool:
+        """
+        检查是否启用了日志自动清理
+        
+        Returns:
+            是否启用日志自动清理
+        """
+        return self.get('auto_clean_logs', True, section='Logging')
+    
+    def set_auto_clean_logs(self, enabled: bool) -> None:
+        """
+        设置是否启用日志自动清理
+        
+        Args:
+            enabled: 是否启用日志自动清理
+        """
+        self.set('auto_clean_logs', enabled, section='Logging')
+        logger.debug(f'日志自动清理已{"启用" if enabled else "禁用"}')
+    
+    def get_log_clean_days(self) -> int:
+        """
+        获取日志清理周期（天数）
+        
+        Returns:
+            日志清理周期天数
+        """
+        return self.get('log_clean_days', 7, section='Logging')
+    
+    def set_log_clean_days(self, days: int) -> None:
+        """
+        设置日志清理周期（天数）
+        
+        Args:
+            days: 日志清理周期天数
+        """
+        self.set('log_clean_days', days, section='Logging')
+        logger.debug(f'日志清理周期已设置为: {days}天')
+    
+    def get_last_log_clean_time(self) -> str:
+        """
+        获取上次日志清理时间
+        
+        Returns:
+            上次日志清理时间字符串
+        """
+        return self.get('last_log_clean_time', '', section='Logging')
+    
+    def set_last_log_clean_time(self, time_str: str) -> None:
+        """
+        设置上次日志清理时间
+        
+        Args:
+            time_str: 时间字符串
+        """
+        self.set('last_log_clean_time', time_str, section='Logging')
+        logger.debug(f'上次日志清理时间已更新: {time_str}')
 
 
 # 创建全局设置实例

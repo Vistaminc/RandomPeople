@@ -250,6 +250,8 @@ class MainWindow(QMainWindow):
         settings_action.triggered.connect(self._open_settings)
         settings_menu.addAction(settings_action)
         
+        # 清除所有日志功能已移至设置对话框中
+        
         # 设置主题子菜单
         theme_menu = QMenu("切换主题", self)
         settings_menu.addMenu(theme_menu)
@@ -1876,6 +1878,8 @@ class MainWindow(QMainWindow):
             "<p>支持权重模式、远程文件和本地文件</p>"
             "<p>© 2025 Vistamin</p>"
         )
+        
+    # _clear_all_logs方法已移至设置对话框中
     
     def closeEvent(self, event) -> None:
         """

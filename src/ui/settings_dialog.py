@@ -18,6 +18,7 @@ from src.config.constants import DrawMode, FileType
 from src.config.settings import app_settings
 from src.utils.validator import is_valid_url
 from src.ui.styles.themes import THEMES, get_theme, PyOneDarkPalette, PyOneLightPalette
+from src.utils.log_utils import clean_all_logs
 
 logger = logging.getLogger(__name__)
 
@@ -497,7 +498,7 @@ class SettingsDialog(QDialog):
         
     def _create_security_tab(self) -> QWidget:
         """
-        创建安全设置选项卡，提供密码保护功能
+        创建安全设置选项卡，提供密码保护功能和日志清理设置
         
         Returns:
             安全设置选项卡部件
@@ -555,6 +556,51 @@ class SettingsDialog(QDialog):
         
         security_layout.addWidget(password_group)
         
+        # 日志清理设置组
+        log_group = QGroupBox("日志清理设置")
+        log_layout = QVBoxLayout(log_group)
+        
+        # 启用日志自动清理选项
+        self.enable_log_clean_check = QCheckBox("启用日志自动清理")
+        self.enable_log_clean_check.setToolTip("开启后，系统将定期自动清理旧日志文件")
+        log_layout.addWidget(self.enable_log_clean_check)
+        
+        # 日志清理周期设置
+        clean_days_layout = QHBoxLayout()
+        clean_days_layout.addWidget(QLabel("清理周期:"))
+        
+        self.log_clean_days_spin = QSpinBox()
+        self.log_clean_days_spin.setMinimum(1)
+        self.log_clean_days_spin.setMaximum(365)
+        self.log_clean_days_spin.setSuffix(" 天")
+        self.log_clean_days_spin.setToolTip("设置日志自动清理的周期，单位为天")
+        clean_days_layout.addWidget(self.log_clean_days_spin)
+        
+        clean_days_layout.addStretch()
+        log_layout.addLayout(clean_days_layout)
+        
+        # 上次清理时间显示
+        self.last_clean_time_label = QLabel("上次清理时间: 未清理")
+        log_layout.addWidget(self.last_clean_time_label)
+        
+        # 添加立即清除所有日志按钮
+        clean_btn_layout = QHBoxLayout()
+        clean_btn_layout.addStretch()
+        
+        self.clean_all_logs_btn = QPushButton("立即清除所有日志")
+        self.clean_all_logs_btn.setToolTip("清除所有日志文件，包括当前正在使用的日志文件")
+        self.clean_all_logs_btn.clicked.connect(self._clean_all_logs)
+        clean_btn_layout.addWidget(self.clean_all_logs_btn)
+        
+        log_layout.addLayout(clean_btn_layout)
+        
+        # 添加提示信息
+        log_note_label = QLabel("注意: 日志文件存储在程序目录下的 logs 文件夹中")
+        log_note_label.setStyleSheet("color: gray; font-size: 10px;")
+        log_layout.addWidget(log_note_label)
+        
+        security_layout.addWidget(log_group)
+        
         # 添加弹性空间
         security_layout.addStretch(1)
         
@@ -598,6 +644,19 @@ class SettingsDialog(QDialog):
         
         # 名单滚动速度
         scroll_speed = app_settings.get('scroll_speed', 5)
+        
+        # 加载日志清理设置
+        auto_clean_logs = app_settings.is_auto_clean_logs_enabled()
+        self.enable_log_clean_check.setChecked(auto_clean_logs)
+        
+        log_clean_days = app_settings.get_log_clean_days()
+        self.log_clean_days_spin.setValue(log_clean_days)
+        
+        last_clean_time = app_settings.get_last_log_clean_time()
+        if last_clean_time:
+            self.last_clean_time_label.setText(f"上次清理时间: {last_clean_time}")
+        else:
+            self.last_clean_time_label.setText("上次清理时间: 未清理")
         self.speed_slider.setValue(scroll_speed)
         self.speed_spin.setValue(scroll_speed)
         
@@ -761,6 +820,13 @@ class SettingsDialog(QDialog):
         
         animation_duration = self.animation_duration_spin.value()
         app_settings.set('animation_duration', animation_duration)
+        
+        # 保存日志清理设置
+        auto_clean_logs = self.enable_log_clean_check.isChecked()
+        app_settings.set_auto_clean_logs(auto_clean_logs)
+        
+        log_clean_days = self.log_clean_days_spin.value()
+        app_settings.set_log_clean_days(log_clean_days)
         
         # 保存自定义参数已经在添加/移除时处理
         
@@ -1362,6 +1428,31 @@ class SettingsDialog(QDialog):
         if new_password != confirm_password:
             QMessageBox.warning(self, "输入错误", "两次输入的密码不一致")
             return
+            
+    def _clean_all_logs(self) -> None:
+        """清除所有日志文件"""
+        # 显示确认对话框
+        reply = QMessageBox.question(
+            self,
+            "确认清除",
+            "确定要清除所有日志文件吗？\n\n这将删除所有日志文件，包括当前正在使用的日志文件。",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # 执行清除操作
+            result = clean_all_logs()
+            
+            # 显示结果
+            if result:
+                QMessageBox.information(self, "清除完成", "所有日志文件已成功清除。")
+                # 更新上次清理时间显示
+                last_clean_time = app_settings.get_last_log_clean_time()
+                if last_clean_time:
+                    self.last_clean_time_label.setText(f"上次清理时间: {last_clean_time}")
+            else:
+                QMessageBox.warning(self, "清除失败", "清除日志文件时出现问题，请查看控制台输出。")
             
         # 设置密码和密码保护状态
         app_settings.set_password(new_password)
