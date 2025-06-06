@@ -438,6 +438,62 @@ class Settings(QObject):
         """
         self.set('last_log_clean_time', time_str, section='Logging')
         logger.debug(f'上次日志清理时间已更新: {time_str}')
+        
+    def get_last_selected_group(self) -> str:
+        """
+        获取上次选择的小组名称
+        
+        Returns:
+            上次选择的小组名称
+        """
+        return self.get('last_selected_group', '', section='UI')
+    
+    def set_last_selected_group(self, group_name: str) -> None:
+        """
+        设置上次选择的小组名称
+        
+        Args:
+            group_name: 小组名称
+        """
+        self.set('last_selected_group', group_name, section='UI')
+        logger.debug(f'已记住选择的小组: {group_name}')
+        
+    def get_group_selection_history(self) -> List[str]:
+        """
+        获取小组选择历史记录
+        
+        Returns:
+            小组选择历史记录列表
+        """
+        history = self.get('group_selection_history', [], section='UI')
+        return history if isinstance(history, list) else []
+    
+    def add_to_group_selection_history(self, group_name: str) -> None:
+        """
+        添加小组到选择历史记录
+        
+        Args:
+            group_name: 小组名称
+        """
+        history = self.get_group_selection_history()
+        
+        # 如果已经存在，先移除
+        if group_name in history:
+            history.remove(group_name)
+        
+        # 添加到最前面
+        history.insert(0, group_name)
+        
+        # 只保留最近的10个记录
+        history = history[:10]
+        
+        self.set('group_selection_history', history, section='UI')
+        logger.debug(f'已添加小组到选择历史: {group_name}')
+        
+    def clear_group_selection_history(self) -> None:
+        """清除小组选择历史记录"""
+        self.set('group_selection_history', [], section='UI')
+        logger.debug('已清除小组选择历史记录')
 
 
 # 创建全局设置实例

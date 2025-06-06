@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎲 随机抽奖系统 V2.0.1
+# 🎲 随机抽奖系统 V2.1.0
 
 <img src="src/icon.png" width="128" height="128">
 
@@ -9,7 +9,8 @@
 ![Python](https://img.shields.io/badge/Python-≥3.10-blue?logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-≥6.5.0-green?logo=qt&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
-![Version](https://img.shields.io/badge/Version-2.0.1-orange)
+![Version](https://img.shields.io/badge/Version-2.1.0-orange)
+![GitHub](https://img.shields.io/badge/GitHub-vistaminc/randompeople-blue?logo=github)
 
 </div>
 
@@ -37,8 +38,11 @@
 
 - **高级功能** 
   - 🔐 **密码保护**: 可为设置界面设置密码保护
+  - 🔒 **任务加密**: 支持对敏感任务数据进行加密存储
   - ⚙️ **自定义参数**: 支持添加自定义参数扩展功能
-  - 👥 **分组管理**: 支持创建和管理多个候选者组
+  - 👥 **智能小组管理**: 支持创建和管理多个候选者组，自动记住选择历史
+  - ✏️ **任务编辑**: 支持直接编辑已保存的任务名单
+  - 📂 **日志分类管理**: 按日期自动分类存储日志文件
   - 🔒 **离线运行**: 支持在无网络环境下完全正常运行
 
 ## 📄 文件格式支持
@@ -143,6 +147,10 @@ random-v2.0/
 
 完整依赖列表请参见 [requirements.txt](requirements.txt)
 
+## 📋 更新日志
+
+查看详细的版本更新记录，请参考 [CHANGELOG.md](CHANGELOG.md)
+
 ## 📋 数据格式示例
 
 ### CSV 示例
@@ -182,6 +190,12 @@ random-v2.0/
 
 3. **Q: 如何自定义界面颜色？**  
    A: 在设置界面的"界面设置"选项卡中，您可以点击各个颜色方块来自定义界面主题颜色。
+
+## 🌟 GitHub 仓库
+
+项目托管在 GitHub 上，欢迎访问、Star 和贡献：
+
+**🔗 [https://github.com/vistaminc/randompeople](https://github.com/vistaminc/randompeople)**
 
 ## 🤝 贡献指南
 

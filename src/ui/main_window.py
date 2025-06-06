@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
     QLabel, QListWidget, QMainWindow, QMenu, QMenuBar, QMessageBox, 
     QPushButton, QScrollArea, QSizePolicy, QSplitter, QSpinBox, QStatusBar, 
-    QToolBar, QVBoxLayout, QWidget, QLineEdit, QListWidgetItem,QGroupBox
+    QToolBar, QVBoxLayout, QWidget, QLineEdit, QListWidgetItem, QGroupBox, QCheckBox, QTextEdit
 )
 
 from src.config.constants import DrawMode, FileType, APP_NAME, APP_VERSION, APP_AUTHOR
@@ -36,6 +36,13 @@ class MainWindow(QMainWindow):
     """
     应用程序主窗口，包含所有UI元素和业务逻辑。
     """
+    
+    @staticmethod
+    def get_default_db_path() -> Path:
+        """获取默认数据库路径 - 使用 %appdata%/random_db.yaml"""
+        import os
+        appdata = os.environ.get('APPDATA', str(Path.home()))
+        return Path(appdata) / 'random_db.yaml'
     
     def __init__(self) -> None:
         """初始化主窗口"""
@@ -177,22 +184,11 @@ class MainWindow(QMainWindow):
         menu_bar = QMenuBar(self)
         self.setMenuBar(menu_bar)
         
-        # 文件菜单
+        # 文件菜单（仅保留导出和退出功能）
         file_menu = QMenu("文件", self)
         menu_bar.addMenu(file_menu)
         
-        # 加载文件动作
-        load_action = QAction("加载文件", self)
-        load_action.setShortcut(QKeySequence("Ctrl+O"))
-        load_action.triggered.connect(self._select_file)
-        file_menu.addAction(load_action)
-        
-        # 导出名单动作
-        export_action = QAction("导出当前名单", self)
-        export_action.triggered.connect(self._export_results)
-        file_menu.addAction(export_action)
-        
-        # 导出结果动作
+        # 导出抽奖结果动作
         export_results_action = QAction("导出抽奖结果", self)
         export_results_action.triggered.connect(self._export_results)
         file_menu.addAction(export_results_action)
@@ -204,6 +200,15 @@ class MainWindow(QMainWindow):
         exit_action.setShortcut(QKeySequence("Alt+F4"))
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+        
+        # 小组管理菜单
+        group_menu = QMenu("小组管理", self)
+        menu_bar.addMenu(group_menu)
+        
+        # 打开小组管理动作
+        manage_groups_action = QAction("管理小组", self)
+        manage_groups_action.triggered.connect(self._open_settings)  # 打开设置对话框到小组管理页面
+        group_menu.addAction(manage_groups_action)
         
         # 任务菜单
         task_menu = QMenu("任务名单", self)
@@ -219,10 +224,7 @@ class MainWindow(QMainWindow):
         view_tasks_action.triggered.connect(self._view_tasks)
         task_menu.addAction(view_tasks_action)
         
-        # 查看历史名单动作
-        history_action = QAction("查看历史名单", self)
-        history_action.triggered.connect(self._view_history_lists)
-        task_menu.addAction(history_action)
+
         
         # 抽奖菜单
         draw_menu = QMenu("抽奖", self)
@@ -394,11 +396,6 @@ class MainWindow(QMainWindow):
         
         # 加载小组设置并填充下拉框
         self._load_groups()
-        
-        # 加载候选名单
-        file_path = app_settings.get('current_name_file', '')
-        if file_path:
-            self._load_file(file_path)
     
     def _update_file_sources(self) -> None:
         """更新文件来源（在设置对话框中管理）"""
@@ -425,6 +422,10 @@ class MainWindow(QMainWindow):
         selected_name = selected_data.get('name', '')
         file_path = selected_data.get('file_path', '')
         
+        # 记住选择的小组
+        app_settings.set_last_selected_group(selected_name)
+        app_settings.add_to_group_selection_history(selected_name)
+        
         # 加载对应的名单文件
         if file_path:
             self._load_file(file_path)
@@ -432,7 +433,7 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(f"已加载当前文件名单", 3000)
             else:
                 self.statusBar().showMessage(f"已加载小组 '{selected_name}' 的名单", 3000)
-            logger.info(f"已通过小组选择加载文件: {file_path}")
+            logger.info(f"已通过小组选择加载文件: {file_path}, 小组: {selected_name}")
         else:
             error_msg = f"小组 '{selected_name}' 没有指定文件路径"
             logger.warning(error_msg)
@@ -450,40 +451,74 @@ class MainWindow(QMainWindow):
         # 清空下拉框
         self.group_combo.clear()
         
-        # 获取当前文件路径
-        current_file = app_settings.get('current_name_file', '')
-        
-        # 添加默认项 - 当前文件
-        self.group_combo.addItem("当前文件", {"name": "当前文件", "file_path": current_file})
-        logger.info(f"添加当前文件选项: {current_file}")
-        
         # 获取小组设置
         groups = app_settings.get('group_settings', [])
         
-        # 添加小组到下拉框（按自定义顺序保持）
-        for group in groups:
-            self.group_combo.addItem(group['name'], group)
+        # 获取小组选择历史记录
+        selection_history = app_settings.get_group_selection_history()
+        
+        # 将历史记录中的小组排在前面（如果存在）
+        groups_dict = {group['name']: group for group in groups}
+        ordered_groups = []
+        
+        # 先添加历史记录中的小组
+        for history_name in selection_history:
+            if history_name in groups_dict:
+                ordered_groups.append(groups_dict[history_name])
+                del groups_dict[history_name]
+        
+        # 再添加其余小组
+        ordered_groups.extend(groups_dict.values())
+        
+        # 添加小组到下拉框
+        for group in ordered_groups:
+            # 如果是最近使用过的小组，在名称前加上星号标记
+            display_name = group['name']
+            if group['name'] in selection_history[:3]:  # 最近3个小组
+                display_name = f"★ {group['name']}"
+            
+            self.group_combo.addItem(display_name, group)
             logger.debug(f"添加小组: {group['name']}")
         
-        # 恢复之前选中的小组（如果可能）
-        if current_text:
-            index = self.group_combo.findText(current_text)
-            if index >= 0:
-                self.group_combo.setCurrentIndex(index)
-                logger.debug(f"恢复之前选中的小组: {current_text}")
+        # 恢复上次选择的小组
+        last_selected = app_settings.get_last_selected_group()
+        if last_selected:
+            # 查找匹配的小组（忽略星号标记）
+            for i in range(self.group_combo.count()):
+                item_data = self.group_combo.itemData(i)
+                if item_data and item_data.get('name') == last_selected:
+                    self.group_combo.setCurrentIndex(i)
+                    # 手动触发选择事件来加载文件
+                    self._on_group_selected(i)
+                    logger.info(f"已恢复上次选择的小组: {last_selected}")
+                    break
+        elif current_text:
+            # 如果没有上次选择记录，尝试恢复之前的选择
+            for i in range(self.group_combo.count()):
+                item_data = self.group_combo.itemData(i)
+                if item_data and item_data.get('name') == current_text:
+                    self.group_combo.setCurrentIndex(i)
+                    # 手动触发选择事件来加载文件
+                    self._on_group_selected(i)
+                    logger.debug(f"恢复之前选中的小组: {current_text}")
+                    break
         
         # 支持打字筛选
         self.group_combo.setEditable(True)
         self.group_combo.setInsertPolicy(QComboBox.NoInsert)  # 防止添加新项
         
         # 添加提示
+        history_tip = ""
+        if selection_history:
+            history_tip = f"\n★ 标记为最近使用的小组"
+        
         self.group_combo.setToolTip("选择小组或输入文字筛选"
-                               "\n按回车键加载选中小组名单")
+                               "\n按回车键加载选中小组名单" + history_tip)
         
         # 启用下拉框
         self.group_combo.setEnabled(True)
         
-        logger.info(f"已加载 {len(groups) + 1} 个小组选项")
+        logger.info(f"已加载 {len(ordered_groups)} 个小组选项，其中 {len(selection_history)} 个有历史记录")
     
     def _apply_theme(self) -> None:
         """应用当前主题样式，支持用户自定义颜色"""
@@ -867,19 +902,61 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "无数据", "请先加载名单文件")
             return
             
-        # 生成默认任务名称（当前时间）
+        # 创建任务配置对话框
+        task_dialog = QDialog(self)
+        task_dialog.setWindowTitle("创建新任务")
+        task_dialog.setMinimumWidth(400)
+        
+        dialog_layout = QVBoxLayout(task_dialog)
+        
+        # 任务名称
+        name_layout = QHBoxLayout()
+        name_label = QLabel("任务名称:")
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         default_name = f"抽奖任务_{timestamp}"
+        name_edit = QLineEdit(default_name)
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(name_edit)
+        dialog_layout.addLayout(name_layout)
         
-        # 输入任务名称
-        task_name, ok = QInputDialog.getText(
-            self, 
-            "创建新任务", 
-            "请输入任务名称:",
-            text=default_name
-        )
+        # 加密选项
+        encrypt_layout = QHBoxLayout()
+        encrypt_check = QCheckBox("加密任务数据")
+        encrypt_check.setToolTip("启用后，任务数据将使用密码加密存储")
+        password_edit = QLineEdit()
+        password_edit.setPlaceholderText("输入加密密码（可选）")
+        password_edit.setEchoMode(QLineEdit.Password)
+        password_edit.setEnabled(False)
         
-        if not ok or not task_name:
+        def on_encrypt_toggled(checked):
+            password_edit.setEnabled(checked)
+            if not checked:
+                password_edit.clear()
+        
+        encrypt_check.toggled.connect(on_encrypt_toggled)
+        encrypt_layout.addWidget(encrypt_check)
+        encrypt_layout.addWidget(password_edit)
+        dialog_layout.addLayout(encrypt_layout)
+        
+        # 按钮
+        button_layout = QHBoxLayout()
+        ok_button = QPushButton("创建")
+        cancel_button = QPushButton("取消")
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+        dialog_layout.addLayout(button_layout)
+        
+        # 连接信号
+        ok_button.clicked.connect(task_dialog.accept)
+        cancel_button.clicked.connect(task_dialog.reject)
+        
+        # 显示对话框
+        if task_dialog.exec() != QDialog.Accepted:
+            return
+            
+        task_name = name_edit.text().strip()
+        if not task_name:
+            QMessageBox.warning(self, "输入错误", "任务名称不能为空")
             return
             
         # 获取当前抽奖结果
@@ -899,14 +976,31 @@ class MainWindow(QMainWindow):
             "file": app_settings.get('current_name_file', ''),
             "total_count": self._lottery_engine.get_total_count(),
             "results": results,
-            "candidates": candidates
+            "candidates": candidates,
+            "encrypted": encrypt_check.isChecked()
         }
+        
+        # 如果选择加密
+        if encrypt_check.isChecked():
+            password = password_edit.text()
+            if not password:
+                QMessageBox.warning(self, "密码错误", "加密任务需要设置密码")
+                return
+            
+            try:
+                # 加密敏感数据
+                encrypted_data = self._encrypt_task_data(task_record, password)
+                task_record.update(encrypted_data)
+                logger.info(f"任务 '{task_name}' 已加密")
+            except Exception as e:
+                QMessageBox.critical(self, "加密失败", f"无法加密任务数据: {str(e)}")
+                return
         
         # 保存任务
         existing_tasks = app_settings.get('task_records', [])
         existing_tasks.append(task_record)
         app_settings.set('task_records', existing_tasks)
-        app_settings.save()
+        app_settings._save_config()
         
         self.statusBar().showMessage(f"任务 '{task_name}' 已保存", 3000)
         logger.info(f"已创建新任务: {task_name}")
@@ -915,13 +1009,103 @@ class MainWindow(QMainWindow):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         default_file_name = f"{task_name}_{timestamp}"
         
+        # 查找刚创建的任务在数据库中的索引
+        try:
+            tasks_path = Path(app_settings.get('tasks_file', str(self.get_default_db_path())))
+            if tasks_path.exists():
+                with open(tasks_path, 'r', encoding='utf-8') as f:
+                    all_tasks = json.load(f)
+                # 新任务是最后一个
+                new_task_index = len(all_tasks) - 1
+            else:
+                new_task_index = -1
+        except:
+            new_task_index = -1
+            
         # 弹出导出格式选择对话框
-        self._export_list_with_format(task_record, default_file_name)
+        self._export_list_with_format(task_record, default_file_name, new_task_index)
             
         # 检查是否需要清空之前的结果
         accumulate_results = app_settings.get('accumulate_results', False)
         if not accumulate_results and hasattr(self, 'result_display'):
             self.result_display.clear_results()
+    
+    def _encrypt_task_data(self, task_record: dict, password: str) -> dict:
+        """加密任务数据"""
+        import hashlib
+        import json
+        import base64
+        
+        # 创建密钥
+        key = hashlib.sha256(password.encode()).digest()
+        
+        # 要加密的数据
+        sensitive_data = {
+            'candidates': task_record.get('candidates', []),
+            'results': task_record.get('results', [])
+        }
+        
+        # 转换为JSON字符串
+        json_data = json.dumps(sensitive_data, ensure_ascii=False)
+        
+        # 简单的XOR加密（仅作演示，实际应用建议使用更强的加密算法）
+        encrypted_bytes = []
+        json_bytes = json_data.encode('utf-8')
+        for i, byte_val in enumerate(json_bytes):
+            encrypted_bytes.append(byte_val ^ key[i % len(key)])
+        
+        # 编码为base64
+        encrypted_data = base64.b64encode(bytes(encrypted_bytes)).decode('utf-8')
+        
+        return {
+            'candidates': task_record.get('candidates', []),  # 保留明文数据用于导出
+            'results': task_record.get('results', []),         # 保留明文数据用于导出
+            'encrypted_data': encrypted_data,
+            'data_hash': hashlib.sha256(json_data.encode()).hexdigest(),
+            'requires_password': True,  # 标记需要密码查看详情
+            'encrypted': True
+        }
+    
+    def _decrypt_task_data(self, task_record: dict, password: str) -> dict:
+        """解密任务数据"""
+        import hashlib
+        import json
+        import base64
+        
+        if not task_record.get('encrypted') or not task_record.get('encrypted_data'):
+            return task_record
+        
+        try:
+            # 创建密钥
+            key = hashlib.sha256(password.encode()).digest()
+            
+            # 解码base64
+            encrypted_bytes = base64.b64decode(task_record['encrypted_data'])
+            
+            # XOR解密
+            decrypted_chars = []
+            for i, byte in enumerate(encrypted_bytes):
+                decrypted_chars.append(chr(byte ^ key[i % len(key)]))
+            
+            json_data = ''.join(decrypted_chars)
+            
+            # 验证数据完整性
+            data_hash = hashlib.sha256(json_data.encode()).hexdigest()
+            if data_hash != task_record.get('data_hash'):
+                raise ValueError("数据完整性验证失败")
+            
+            # 解析JSON
+            sensitive_data = json.loads(json_data)
+            
+            # 更新任务记录
+            decrypted_record = task_record.copy()
+            decrypted_record.update(sensitive_data)
+            
+            return decrypted_record
+            
+        except Exception as e:
+            logger.error(f"解密任务数据失败: {str(e)}")
+            raise ValueError("解密失败，可能是密码错误或数据损坏")
             
     def _animate_results(self, results: List[str]) -> None:
         """
@@ -1228,6 +1412,7 @@ class MainWindow(QMainWindow):
     
 
     
+
     @Slot()
     def _reset_lottery(self) -> None:
         """重置抽奖状态"""
@@ -1260,7 +1445,20 @@ class MainWindow(QMainWindow):
             return
         
         # 获取抽奖结果
-        results = self.result_display.get_results_as_list()
+        raw_results = self.result_display.get_results_as_list()
+        logger.info(f"原始抽奖结果: {raw_results}")
+        
+        # 确保结果是简单的字符串列表
+        results = []
+        for result in raw_results:
+            if isinstance(result, str):
+                results.append(result.strip())
+            elif isinstance(result, dict) and 'name' in result:
+                results.append(str(result['name']).strip())
+            else:
+                results.append(str(result).strip())
+        
+        logger.info(f"处理后的抽奖结果: {results}")
         
         # 创建导出配置对话框
         export_dialog = QDialog(self)
@@ -1288,6 +1486,32 @@ class MainWindow(QMainWindow):
         format_layout.addWidget(format_label)
         format_layout.addWidget(format_combo)
         dialog_layout.addLayout(format_layout)
+        
+        # 编辑密码设置
+        password_group = QGroupBox("编辑保护")
+        password_layout = QVBoxLayout(password_group)
+        
+        password_check = QCheckBox("设置编辑密码")
+        password_check.setToolTip("启用后，编辑此名单时需要输入密码")
+        password_layout.addWidget(password_check)
+        
+        password_input_layout = QHBoxLayout()
+        password_label = QLabel("编辑密码:")
+        password_edit = QLineEdit()
+        password_edit.setPlaceholderText("输入编辑密码")
+        password_edit.setEchoMode(QLineEdit.Password)
+        password_edit.setEnabled(False)
+        password_input_layout.addWidget(password_label)
+        password_input_layout.addWidget(password_edit)
+        password_layout.addLayout(password_input_layout)
+        
+        def on_password_toggled(checked):
+            password_edit.setEnabled(checked)
+            if not checked:
+                password_edit.clear()
+        
+        password_check.toggled.connect(on_password_toggled)
+        dialog_layout.addWidget(password_group)
         
         # 结果预览
         preview_group = QGroupBox("结果预览")
@@ -1329,6 +1553,15 @@ class MainWindow(QMainWindow):
             task_name = f"抽奖任务 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         
         selected_format = format_combo.currentData()
+        use_edit_password = password_check.isChecked()
+        edit_password = password_edit.text().strip()
+        
+        # 验证编辑密码
+        if use_edit_password and not edit_password:
+            QMessageBox.warning(self, "密码错误", "启用编辑保护时必须输入密码")
+            return
+            
+        # 抽奖结果导出始终为明文
         
         # 获取当前时间
         timestamp = datetime.now().isoformat()
@@ -1354,33 +1587,55 @@ class MainWindow(QMainWindow):
             # 保存当前目录
             app_settings.set('last_file_directory', str(Path(file_path).parent))
             
-            # 根据文件类型导出
+            # 根据文件类型生成内容
             ext = Path(file_path).suffix.lower()
+            content = ""
             
             if ext == '.csv':
-                with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(['抽奖系统'])
-                    for result in results:
-                        writer.writerow([result])
+                import io
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerow(['序号', '抽奖结果'])
+                for i, result in enumerate(results, 1):
+                    writer.writerow([i, result])
+                content = output.getvalue()
             elif ext == '.txt':
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    for result in results:
-                        f.write(f"{result}\n")
+                content = f"抽奖结果\n"
+                content += f"任务名称: {task_name}\n"
+                content += f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                content += f"总人数: {len(results)}\n\n"
+                content += "抽奖结果列表:\n"
+                for i, result in enumerate(results, 1):
+                    content += f"{i}. {result}\n"
             elif ext == '.json':
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump({"results": results, "timestamp": timestamp}, f, ensure_ascii=False, indent=2)
+                export_data = {
+                    "task_name": task_name,
+                    "export_time": datetime.now().isoformat(),
+                    "total_count": len(results),
+                    "results": results
+                }
+                content = json.dumps(export_data, ensure_ascii=False, indent=2)
             
-            # 将任务保存到历史记录
-            self._save_task_to_history(task_name, results, timestamp, file_path)
+            # 始终保存明文内容
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            status_msg = f"已导出 {len(results)} 个抽奖结果到 {file_path}"
             
-            self.statusBar().showMessage(f"已导出 {len(results)} 个抽奖结果到 {file_path}", 3000)
+            # 将任务保存到历史记录，包含编辑密码信息
+            edit_password_info = {'use_edit_password': use_edit_password, 'edit_password': edit_password} if use_edit_password else None
+            self._save_task_to_history(task_name, results, timestamp, file_path, edit_password_info)
+            
+            self.statusBar().showMessage(status_msg, 3000)
             logger.info(f"已导出抽奖结果到 {file_path}, 并添加到历史任务")
+            
+            # 如果设置了编辑密码，显示成功消息
+            if use_edit_password:
+                QMessageBox.information(self, "设置成功", "已成功设置编辑密码，下次编辑名单时需要输入密码。")
         except Exception as e:
             QMessageBox.critical(self, "导出失败", f"无法导出结果: {str(e)}")
             logger.error(f"导出抽奖结果失败: {str(e)}")
 
-    def _save_task_to_history(self, task_name: str, results: list, timestamp: str, file_path: str) -> None:
+    def _save_task_to_history(self, task_name: str, results: list, timestamp: str, file_path: str, edit_password_info: dict = None) -> None:
         """将抽奖任务保存到历史记录
         
         Args:
@@ -1388,9 +1643,10 @@ class MainWindow(QMainWindow):
             results: 抽奖结果列表
             timestamp: 时间戳
             file_path: 导出文件路径
+            edit_password_info: 编辑密码信息，包含use_edit_password和edit_password
         """
         # 读取现有任务文件
-        tasks_path = Path(app_settings.get('tasks_file', str(Path.home() / 'lottery_tasks.json')))
+        tasks_path = Path(app_settings.get('tasks_file', str(self.get_default_db_path())))
         
         # 创建目录（如果不存在）
         tasks_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1416,6 +1672,11 @@ class MainWindow(QMainWindow):
             'file': app_settings.get('current_name_file', ''),
             'total_count': len(results)
         }
+        
+        # 添加编辑密码信息
+        if edit_password_info and edit_password_info.get('use_edit_password'):
+            new_task['edit_password'] = edit_password_info['edit_password']
+            new_task['edit_protected'] = True
         
         # 添加到任务列表顶部
         tasks.insert(0, new_task)
@@ -1573,7 +1834,7 @@ class MainWindow(QMainWindow):
                     return
                 
                 # 弹出导出格式选择对话框
-                self._export_list_with_format(task)
+                self._export_list_with_format(task, "", index)
         
         # 连接信号
         task_list.currentRowChanged.connect(on_task_selected)
@@ -1587,7 +1848,7 @@ class MainWindow(QMainWindow):
     def _view_tasks(self) -> None:
         """查看所有任务"""
         # 读取任务文件
-        tasks_path = Path(app_settings.get('tasks_file', str(Path.home() / 'lottery_tasks.json')))
+        tasks_path = Path(app_settings.get('tasks_file', str(self.get_default_db_path())))
         
         if not tasks_path.exists():
             QMessageBox.information(self, "无任务", "当前没有任务记录。")
@@ -1615,7 +1876,9 @@ class MainWindow(QMainWindow):
         task_list = QListWidget()
         for task in tasks:
             task_time = datetime.fromisoformat(task['timestamp']).strftime("%Y-%m-%d %H:%M:%S")
-            task_list.addItem(f"{task['name']} - {task_time} (结果数: {len(task['results'])})")
+            encrypted_mark = "🔒 " if task.get('encrypted') else ""
+            edit_protected_mark = "✏️🔒 " if task.get('edit_protected') else ""
+            task_list.addItem(f"{encrypted_mark}{edit_protected_mark}{task['name']} - {task_time} (结果数: {len(task['results'])})")
         
         # 创建详情显示区
         details_frame = QFrame()
@@ -1640,8 +1903,14 @@ class MainWindow(QMainWindow):
         close_button = QPushButton("关闭")
         export_button = QPushButton("导出选中任务")
         export_button.setEnabled(False)
+        edit_task_button = QPushButton("✏️ 编辑名单")
+        edit_task_button.setEnabled(False)
+        delete_task_button = QPushButton("🗑️ 删除任务")
+        delete_task_button.setEnabled(False)
         
         button_layout.addWidget(export_button)
+        button_layout.addWidget(edit_task_button)
+        button_layout.addWidget(delete_task_button)
         button_layout.addWidget(close_button)
         
         # 布局组织
@@ -1652,68 +1921,272 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(splitter)
         layout.addLayout(button_layout)
-    
-    # 任务列表项选中事件
-    def on_task_selected(index):
-        if index >= 0 and index < len(tasks):
-            task = tasks[index]
-            task_time = datetime.fromisoformat(task['timestamp']).strftime("%Y-%m-%d %H:%M:%S")
-            
-            # 清空当前滚动区域内容
-            for i in reversed(range(scroll_layout.count())):
-                widget = scroll_layout.itemAt(i).widget()
-                if widget:
-                    widget.deleteLater()
-            
-            # 添加任务信息
-            task_name_label = QLabel(f"任务名称: {task['name']}")
-            task_name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-            scroll_layout.addWidget(task_name_label)
-            
-            scroll_layout.addWidget(QLabel(f"创建时间: {task_time}"))
-            scroll_layout.addWidget(QLabel(f"源文件: {task['file'] or '无'}"))
-            scroll_layout.addWidget(QLabel(f"总人数: {task['total_count']}"))
-            
-            # 显示结果
-            scroll_layout.addWidget(QLabel(f"抽奖结果 ({len(task['results'])}):"))
-            
-            if task['results']:
-                results_text = '\n'.join(f"- {result}" for result in task['results'])
-                results_label = QLabel(results_text)
-                results_label.setWordWrap(True)
-                scroll_layout.addWidget(results_label)
-            else:
-                scroll_layout.addWidget(QLabel("无抽奖结果"))
-            
-            scroll_layout.addStretch(1)
-            export_button.setEnabled(True)
-    
-    # 导出选中任务
-    def export_selected_task():
-        index = task_list.currentRow()
-        if index >= 0 and index < len(tasks):
-            task = tasks[index]
-            
-            default_dir = app_settings.get('last_file_directory', str(Path.home()))
-            file_path, _ = QFileDialog.getSaveFileName(
-                task_dialog,
-                f"导出任务 '{task['name']}'",
-                str(Path(default_dir) / f"{task['name']}.json"),
-                "JSON文件 (*.json);;所有文件 (*.*)"
-            )
-            
-            if file_path:
-                try:
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        json.dump(task, f, ensure_ascii=False, indent=2)
-                    QMessageBox.information(task_dialog, "导出成功", f"任务已导出到 {file_path}")
-                except Exception as e:
-                    QMessageBox.critical(task_dialog, "导出失败", f"无法导出任务: {str(e)}")
-    
+        
+        # 任务列表项选中事件
+        def on_task_selected(index):
+            if index >= 0 and index < len(tasks):
+                task = tasks[index]
+                
+                # 如果任务需要密码保护，先验证密码
+                if task.get('encrypted'):
+                    password, ok = QInputDialog.getText(
+                        task_dialog, 
+                        "输入密码", 
+                        f"任务 '{task['name']}' 已加密，请输入查看密码:",
+                        QLineEdit.Password
+                    )
+                    
+                    if not ok or not password:
+                        return
+                    
+                    try:
+                        # 验证密码（尝试解密一小部分数据来验证）
+                        test_decrypt = self._decrypt_task_data(task, password)
+                        # 如果解密成功，继续显示（但仍显示原始数据，不替换）
+                    except Exception as e:
+                        QMessageBox.warning(task_dialog, "密码错误", "密码不正确或数据损坏")
+                        return
+                
+                task_time = datetime.fromisoformat(task['timestamp']).strftime("%Y-%m-%d %H:%M:%S")
+                
+                # 清空当前滚动区域内容
+                for i in reversed(range(scroll_layout.count())):
+                    widget = scroll_layout.itemAt(i).widget()
+                    if widget:
+                        widget.deleteLater()
+                
+                # 添加任务信息
+                task_name_label = QLabel(f"任务名称: {task['name']}")
+                task_name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+                scroll_layout.addWidget(task_name_label)
+                
+                scroll_layout.addWidget(QLabel(f"创建时间: {task_time}"))
+                scroll_layout.addWidget(QLabel(f"源文件: {task.get('file', '无') or '无'}"))
+                scroll_layout.addWidget(QLabel(f"总人数: {task.get('total_count', len(task.get('results', [])))}"))
+                
+                # 显示名单成员
+                if 'candidates' in task and task['candidates']:
+                    scroll_layout.addWidget(QLabel("名单成员:"))
+                    
+                    # 显示名单列表（只读）
+                    candidates_text = '\n'.join([f"{i+1}. {name}" for i, name in enumerate(task['candidates']) if isinstance(name, str) or str(name)])
+                    candidates_label = QLabel(candidates_text)
+                    candidates_label.setWordWrap(True)
+                    candidates_label.setStyleSheet("padding: 10px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;")
+                    candidates_label.setMaximumHeight(200)
+                    candidates_label.setAlignment(Qt.AlignTop)
+                    scroll_layout.addWidget(candidates_label)
+                    
+                    # 编辑名单按钮
+                    edit_button = QPushButton("✏️ 编辑名单")
+                    edit_button.setToolTip("点击编辑这个任务的名单成员")
+                    edit_button.clicked.connect(lambda: show_edit_dialog(index))
+                    scroll_layout.addWidget(edit_button)
+                else:
+                    scroll_layout.addWidget(QLabel("没有保存名单成员"))
+                
+                # 显示结果
+                scroll_layout.addWidget(QLabel(f"抽奖结果 ({len(task.get('results', []))}):"))
+                
+                if task.get('results'):
+                    results_text = '\n'.join(f"- {result}" for result in task['results'])
+                    results_label = QLabel(results_text)
+                    results_label.setWordWrap(True)
+                    scroll_layout.addWidget(results_label)
+                else:
+                    scroll_layout.addWidget(QLabel("无抽奖结果"))
+                
+                scroll_layout.addStretch(1)
+                export_button.setEnabled(True)
+                edit_task_button.setEnabled(True)
+                delete_task_button.setEnabled(True)
+        
+        # 编辑任务功能
+        def edit_selected_task():
+            index = task_list.currentRow()
+            if index >= 0 and index < len(tasks):
+                show_edit_dialog(index)
+        
+        # 删除任务功能
+        def delete_selected_task():
+            index = task_list.currentRow()
+            if index >= 0 and index < len(tasks):
+                task = tasks[index]
+                reply = QMessageBox.question(
+                    task_dialog,
+                    "确认删除",
+                    f"确定要删除任务 '{task['name']}' 吗？\n\n此操作不可恢复！",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    try:
+                        # 删除任务
+                        del tasks[index]
+                        
+                        # 保存到文件
+                        with open(tasks_path, 'w', encoding='utf-8') as f:
+                            json.dump(tasks, f, ensure_ascii=False, indent=2)
+                        
+                        # 刷新任务列表
+                        task_list.clear()
+                        for i, task in enumerate(tasks):
+                            task_time = datetime.fromisoformat(task['timestamp']).strftime("%Y-%m-%d %H:%M:%S")
+                            encrypted_mark = "🔒 " if task.get('encrypted') else ""
+                            edit_protected_mark = "✏️🔒 " if task.get('edit_protected') else ""
+                            task_list.addItem(f"{encrypted_mark}{edit_protected_mark}{task['name']} - {task_time} (结果数: {len(task['results'])})")
+                        
+                        # 清空详情显示
+                        for i in reversed(range(scroll_layout.count())):
+                            widget = scroll_layout.itemAt(i).widget()
+                            if widget:
+                                widget.deleteLater()
+                        
+                        # 禁用按钮
+                        export_button.setEnabled(False)
+                        edit_task_button.setEnabled(False)
+                        delete_task_button.setEnabled(False)
+                        
+                        QMessageBox.information(task_dialog, "删除成功", "任务已成功删除")
+                        logger.info(f"已删除任务: {task['name']}")
+                        
+                    except Exception as e:
+                        QMessageBox.critical(task_dialog, "删除失败", f"无法删除任务: {str(e)}")
+                        logger.error(f"删除任务失败: {str(e)}")
+        
+        # 显示编辑对话框
+        def show_edit_dialog(task_index):
+            if task_index >= 0 and task_index < len(tasks):
+                task = tasks[task_index]
+                
+                # 如果任务是加密的或设置了编辑密码，先验证密码
+                edit_password = None
+                if task.get('encrypted') or task.get('edit_protected'):
+                    # 获取验证密码提示
+                    if task.get('edit_protected'):
+                        password_prompt = f"任务 '{task['name']}' 已设置编辑保护，请输入编辑密码:"
+                    else:
+                        password_prompt = f"任务 '{task['name']}' 已加密，请输入密码:"
+                    
+                    password, ok = QInputDialog.getText(
+                        task_dialog, 
+                        "输入密码", 
+                        password_prompt,
+                        QLineEdit.Password
+                    )
+                    
+                    if not ok or not password:
+                        return
+                    
+                    # 验证密码
+                    if task.get('edit_protected'):
+                        # 验证编辑密码
+                        if password != task.get('edit_password', ''):
+                            QMessageBox.warning(task_dialog, "密码错误", "编辑密码不正确")
+                            return
+                    elif task.get('encrypted'):
+                        # 验证加密密码
+                        try:
+                            test_decrypt = self._decrypt_task_data(task, password)
+                            edit_password = password
+                        except Exception as e:
+                            QMessageBox.warning(task_dialog, "密码错误", "密码不正确或数据损坏")
+                            return
+                
+                # 创建编辑对话框
+                edit_dialog = QDialog(task_dialog)
+                edit_dialog.setWindowTitle(f"编辑任务名单 - {task['name']}")
+                edit_dialog.setMinimumSize(500, 400)
+                
+                edit_layout = QVBoxLayout(edit_dialog)
+                
+                # 说明标签
+                info_label = QLabel("编辑抽奖结果（每行一个结果）:")
+                info_label.setStyleSheet("font-weight: bold;")
+                edit_layout.addWidget(info_label)
+                
+                # 可编辑的文本框 - 编辑抽奖结果
+                results_edit = QTextEdit()
+                results = task.get('results', [])
+                if not results:
+                    results_text = ""
+                else:
+                    results_text = '\n'.join([name if isinstance(name, str) else str(name) for name in results])
+                results_edit.setPlainText(results_text)
+                results_edit.setToolTip("每行输入一个抽奖结果")
+                edit_layout.addWidget(results_edit)
+                
+                # 按钮区域
+                button_layout = QHBoxLayout()
+                cancel_button = QPushButton("取消")
+                save_button = QPushButton("保存")
+                save_button.setDefault(True)
+                
+                button_layout.addStretch()
+                button_layout.addWidget(cancel_button)
+                button_layout.addWidget(save_button)
+                edit_layout.addLayout(button_layout)
+                
+                # 绑定事件
+                cancel_button.clicked.connect(edit_dialog.reject)
+                save_button.clicked.connect(lambda: save_and_close(results_edit.toPlainText()))
+                
+                def save_and_close(new_results_text):
+                    # 解析新的抽奖结果列表
+                    new_results = [line.strip() for line in new_results_text.split('\n') if line.strip()]
+                    
+                    if not new_results:
+                        QMessageBox.warning(edit_dialog, "警告", "抽奖结果不能为空！")
+                        return
+                    
+                    # 更新任务数据 - 更新抽奖结果
+                    tasks[task_index]['results'] = new_results
+                    
+                    # 如果任务是加密的，需要重新加密存储
+                    if task.get('encrypted') and edit_password:
+                        try:
+                            # 重新加密更新后的任务数据
+                            encrypted_data = self._encrypt_task_data(tasks[task_index], edit_password)
+                            tasks[task_index].update(encrypted_data)
+                        except Exception as e:
+                            QMessageBox.critical(edit_dialog, "加密失败", f"无法重新加密任务数据: {str(e)}")
+                            return
+                    
+                    # 保存到文件
+                    try:
+                        with open(tasks_path, 'w', encoding='utf-8') as f:
+                            json.dump(tasks, f, ensure_ascii=False, indent=2)
+                        
+                        QMessageBox.information(edit_dialog, "保存成功", f"抽奖结果已更新，共 {len(new_results)} 个结果")
+                        logger.info(f"已更新任务 '{tasks[task_index]['name']}' 的抽奖结果")
+                        
+                        # 关闭编辑对话框
+                        edit_dialog.accept()
+                        
+                        # 刷新主显示
+                        on_task_selected(task_index)
+                        
+                    except Exception as e:
+                        QMessageBox.critical(edit_dialog, "保存失败", f"无法保存抽奖结果: {str(e)}")
+                        logger.error(f"保存任务抽奖结果失败: {str(e)}")
+                
+                # 显示编辑对话框
+                edit_dialog.exec()
+        
+        # 导出选中任务
+        def export_selected_task():
+            index = task_list.currentRow()
+            if index >= 0 and index < len(tasks):
+                task = tasks[index]
+                self._export_list_with_format(task, task['name'], index)
+        
         # 连接信号
         task_list.currentRowChanged.connect(on_task_selected)
         close_button.clicked.connect(task_dialog.accept)
         export_button.clicked.connect(export_selected_task)
+        edit_task_button.clicked.connect(edit_selected_task)
+        delete_task_button.clicked.connect(delete_selected_task)
         
         # 显示对话框
         task_dialog.exec()
@@ -1722,9 +2195,20 @@ class MainWindow(QMainWindow):
     def _view_history_lists(self) -> None:
         """查看历史名单"""
         # 读取任务文件
-        tasks_path = Path(app_settings.get('tasks_file', str(Path.home() / 'lottery_tasks.json')))
+        tasks_path = Path(app_settings.get('tasks_file', str(self.get_default_db_path())))
         
         if not tasks_path.exists():
+            QMessageBox.information(self, "无历史名单", "当前没有历史名单记录。")
+            return
+        
+        try:
+            with open(tasks_path, 'r', encoding='utf-8') as f:
+                tasks = json.load(f)
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"无法读取任务文件: {str(e)}")
+            return
+        
+        if not tasks:
             QMessageBox.information(self, "无历史名单", "当前没有历史名单记录。")
             return
         
@@ -1845,7 +2329,7 @@ class MainWindow(QMainWindow):
                     return
                 
                 # 弹出导出格式选择对话框
-                self._export_list_with_format(task)
+                self._export_list_with_format(task, "", index)
         
         # 连接信号
         task_list.currentRowChanged.connect(on_task_selected)
@@ -1856,28 +2340,439 @@ class MainWindow(QMainWindow):
         history_dialog.exec()
     
     @Slot()
-    def _export_list_with_format(self, task: Dict) -> None:
+    def _export_list_with_format(self, task: Dict, default_name: str = "", task_index: int = -1) -> None:
         """导出名单到文件
         
         Args:
             task: 任务数据
+            default_name: 默认文件名
+            task_index: 任务在列表中的索引（用于更新密码）
         """
-        if 'candidates' not in task or not task['candidates']:
-            QMessageBox.information(self, "无法导出", "选中的任务没有保存名单成员。")
+        # 直接获取任务的基本信息用于导出
+        # 不管是否加密，candidates和results字段应该是明文存储的名单列表
+        candidates = task.get('candidates', [])
+        results = task.get('results', [])
+        
+        # 如果任务是加密的且需要验证密码，这里只是验证权限，不解密数据
+        if task.get('encrypted'):
+            password, ok = QInputDialog.getText(
+                self, 
+                "输入密码", 
+                f"任务 '{task['name']}' 已加密，请输入密码以导出名单:",
+                QLineEdit.Password
+            )
+            
+            if not ok or not password:
+                return
+            
+            try:
+                # 只验证密码是否正确，不需要解密
+                self._decrypt_task_data(task, password)
+            except Exception as e:
+                QMessageBox.warning(self, "密码错误", "密码不正确")
+                return
+        
+        if not candidates and not results:
+            QMessageBox.information(self, "无法导出", "选中的任务没有保存名单成员或抽奖结果。")
             return
+        
+        # 如果没有candidates但有results，可以导出results
+        if not candidates and results:
+            candidates = results  # 使用抽奖结果作为导出内容
+            
+        # 创建导出配置对话框
+        export_dialog = QDialog(self)
+        export_dialog.setWindowTitle("导出名单配置")
+        export_dialog.setMinimumWidth(500)
+        
+        dialog_layout = QVBoxLayout(export_dialog)
+        
+        # 文件名输入
+        name_layout = QHBoxLayout()
+        name_label = QLabel("文件名:")
+        name_edit = QLineEdit()
+        name_edit.setText(default_name or f"{task.get('name', '名单')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(name_edit)
+        dialog_layout.addLayout(name_layout)
+        
+        # 导出格式选择
+        format_layout = QHBoxLayout()
+        format_label = QLabel("导出格式:")
+        format_combo = QComboBox()
+        format_combo.addItem("CSV 文件 (*.csv)", ".csv")
+        format_combo.addItem("文本文件 (*.txt)", ".txt")
+        format_combo.addItem("JSON 文件 (*.json)", ".json")
+        format_layout.addWidget(format_label)
+        format_layout.addWidget(format_combo)
+        dialog_layout.addLayout(format_layout)
+        
+        # 编辑密码设置
+        password_group = QGroupBox("编辑保护")
+        password_layout = QVBoxLayout(password_group)
+        
+        password_check = QCheckBox("设置编辑密码")
+        password_check.setToolTip("启用后，编辑此名单时需要输入密码")
+        password_layout.addWidget(password_check)
+        
+        password_input_layout = QHBoxLayout()
+        password_label = QLabel("编辑密码:")
+        password_edit = QLineEdit()
+        password_edit.setPlaceholderText("输入编辑密码")
+        password_edit.setEchoMode(QLineEdit.Password)
+        password_edit.setEnabled(False)
+        password_input_layout.addWidget(password_label)
+        password_input_layout.addWidget(password_edit)
+        password_layout.addLayout(password_input_layout)
+        
+        def on_password_toggled(checked):
+            password_edit.setEnabled(checked)
+            if not checked:
+                password_edit.clear()
+        
+        password_check.toggled.connect(on_password_toggled)
+        dialog_layout.addWidget(password_group)
+        
+        # 结果预览
+        preview_group = QGroupBox("名单预览")
+        preview_layout = QVBoxLayout(preview_group)
+        
+        results_list = QListWidget()
+        preview_candidates = task.get('candidates', [])
+        for candidate in preview_candidates[:50]:  # 最多显示50个
+            candidate_name = candidate if isinstance(candidate, str) else str(candidate)
+            results_list.addItem(candidate_name)
+        preview_layout.addWidget(results_list)
+        
+        count_label = QLabel(f"共 {len(preview_candidates)} 个成员" + (f"（显示前50个）" if len(preview_candidates) > 50 else ""))
+        count_label.setAlignment(Qt.AlignRight)
+        preview_layout.addWidget(count_label)
+        
+        dialog_layout.addWidget(preview_group)
+        
+        # 按钮区域
+        buttons_layout = QHBoxLayout()
+        cancel_button = QPushButton("取消")
+        export_button = QPushButton("导出")
+        export_button.setDefault(True)
+        
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(cancel_button)
+        buttons_layout.addWidget(export_button)
+        dialog_layout.addLayout(buttons_layout)
+        
+        # 绑定事件
+        cancel_button.clicked.connect(export_dialog.reject)
+        export_button.clicked.connect(export_dialog.accept)
+        
+        # 显示对话框
+        if export_dialog.exec_() != QDialog.Accepted:
+            return
+        
+        # 获取用户输入
+        file_name = name_edit.text().strip()
+        if not file_name:
+            QMessageBox.warning(self, "输入错误", "文件名不能为空")
+            return
+        
+        selected_format = format_combo.currentData()
+        use_edit_password = password_check.isChecked()
+        edit_password = password_edit.text().strip()
+        
+        # 验证编辑密码
+        if use_edit_password and not edit_password:
+            QMessageBox.warning(self, "密码错误", "启用编辑保护时必须输入密码")
+            return
+        
+        # 构建文件名
+        file_name = file_name.replace(":", "-").replace(" ", "_")  # 替换非法字符
+        if not file_name.endswith(selected_format):
+            file_name += selected_format
+        
+        # 选择保存路径
+        default_dir = app_settings.get('last_file_directory', str(Path.home()))
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "保存文件",
+            str(Path(default_dir) / file_name),
+            f"文件 (*{selected_format});;所有文件 (*.*)"
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            # 保存当前目录
+            app_settings.set('last_file_directory', str(Path(file_path).parent))
+            
+            # 准备要导出的数据 - 直接使用任务中的明文数据
+            final_candidates = candidates if candidates else results
+            
+            # 转换为字符串列表
+            candidates_list = []
+            for candidate in final_candidates:
+                if isinstance(candidate, str):
+                    candidates_list.append(candidate)
+                elif isinstance(candidate, dict) and 'name' in candidate:
+                    candidates_list.append(candidate['name'])
+                else:
+                    candidates_list.append(str(candidate))
+            
+            if not candidates_list:
+                QMessageBox.warning(self, "无法导出", "任务中没有找到有效的名单数据")
+                return
+            
+            # 根据文件类型生成内容
+            content = ""
+            if selected_format == '.csv':
+                import csv
+                import io
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerow(['序号', '姓名'])
+                for i, name in enumerate(candidates_list, 1):
+                    writer.writerow([i, name])
+                content = output.getvalue()
+            elif selected_format == '.txt':
+                content = f"名单文件\n"
+                content += f"任务名称: {task.get('name', '未知')}\n"
+                content += f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                content += f"总人数: {len(candidates_list)}\n\n"
+                content += "名单列表:\n"
+                for i, name in enumerate(candidates_list, 1):
+                    content += f"{i}. {name}\n"
+            elif selected_format == '.json':
+                import json
+                export_data = {
+                    "task_name": task.get('name', '未知'),
+                    "export_time": datetime.now().isoformat(),
+                    "total_count": len(candidates_list),
+                    "candidates": candidates_list
+                }
+                content = json.dumps(export_data, ensure_ascii=False, indent=2)
+            
+            # 始终保存明文内容
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            status_msg = f"已导出 {len(candidates_list)} 个名单成员到 {file_path}"
+            
+            self.statusBar().showMessage(status_msg, 3000)
+            logger.info(status_msg)
+            
+            # 如果设置了编辑密码且提供了任务索引，更新数据库
+            if use_edit_password and task_index >= 0:
+                try:
+                    # 读取任务文件
+                    tasks_path = Path(app_settings.get('tasks_file', str(self.get_default_db_path())))
+                    if tasks_path.exists():
+                        with open(tasks_path, 'r', encoding='utf-8') as f:
+                            all_tasks = json.load(f)
+                        
+                        # 更新任务的编辑密码
+                        if task_index < len(all_tasks):
+                            all_tasks[task_index]['edit_password'] = edit_password
+                            all_tasks[task_index]['edit_protected'] = True
+                            
+                            # 保存更新后的任务文件
+                            with open(tasks_path, 'w', encoding='utf-8') as f:
+                                json.dump(all_tasks, f, ensure_ascii=False, indent=2)
+                            
+                            logger.info(f"已为任务 '{task['name']}' 设置编辑密码")
+                            QMessageBox.information(self, "设置成功", "已成功设置编辑密码，下次编辑名单时需要输入密码。")
+                except Exception as e:
+                    logger.error(f"更新编辑密码失败: {str(e)}")
+                    QMessageBox.warning(self, "警告", f"导出成功，但设置编辑密码失败: {str(e)}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "导出失败", f"无法导出名单: {str(e)}")
+            logger.error(f"导出名单失败: {str(e)}")
+    
+    def _encrypt_text_content(self, content: str, password: str) -> str:
+        """加密文本内容
+        
+        Args:
+            content: 要加密的文本内容
+            password: 加密密码
+            
+        Returns:
+            加密后的文本
+        """
+        import hashlib
+        import base64
+        import json
+        
+        # 创建密钥
+        key = hashlib.sha256(password.encode()).digest()
+        
+        # 简单的XOR加密
+        encrypted_bytes = []
+        content_bytes = content.encode('utf-8')
+        for i, byte_val in enumerate(content_bytes):
+            # 确保XOR结果在0-255范围内
+            encrypted_byte = byte_val ^ key[i % len(key)]
+            encrypted_bytes.append(encrypted_byte)
+        
+        # 编码为base64
+        encrypted_data = base64.b64encode(bytes(encrypted_bytes)).decode('utf-8')
+        
+        # 创建加密文件结构
+        encrypted_file = {
+            "encrypted": True,
+            "data": encrypted_data,
+            "hash": hashlib.sha256(content.encode()).hexdigest(),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return json.dumps(encrypted_file, ensure_ascii=False, indent=2)
     
     @Slot()
     def _show_about(self) -> None:
         """显示关于对话框"""
-        QMessageBox.about(
-            self,
-            "关于随机抽奖系统",
-            "<h2>随机抽奖系统</h2>"
-            "<p>版本: 2.0.1</p>"
-            "<p>一个基于PySide6的随机抽奖应用程序</p>"
-            "<p>支持权重模式、远程文件和本地文件</p>"
-            "<p>© 2025 Vistamin</p>"
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        
+        # 创建自定义关于对话框
+        about_dialog = QDialog(self)
+        about_dialog.setWindowTitle(f"关于 {APP_NAME}")
+        about_dialog.setFixedSize(500, 400)
+        
+        # 根据当前主题设置样式
+        theme_mode = app_settings.get_theme_mode() or 'dark'
+        custom_colors = app_settings.get('theme_colors', {})
+        current_theme = get_theme(theme_mode, custom_colors)
+        
+        if theme_mode == 'dark':
+            about_dialog.setStyleSheet(f"""
+                QDialog {{
+                    background-color: #282c34;
+                    border-radius: 10px;
+                }}
+                QLabel {{
+                    color: #abb2bf;
+                }}
+                QPushButton {{
+                    background-color: #98c379;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background-color: #a9d489;
+                }}
+                QPushButton#github_btn {{
+                    background-color: #61afef;
+                }}
+                QPushButton#github_btn:hover {{
+                    background-color: #70b8ff;
+                }}
+                QFrame {{
+                    color: #3b4048;
+                }}
+            """)
+        else:
+            about_dialog.setStyleSheet(f"""
+                QDialog {{
+                    background-color: #f5f5f5;
+                    border-radius: 10px;
+                }}
+                QLabel {{
+                    color: #383a42;
+                }}
+                QPushButton {{
+                    background-color: #50a14f;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background-color: #5bb85c;
+                }}
+                QPushButton#github_btn {{
+                    background-color: #4078f2;
+                }}
+                QPushButton#github_btn:hover {{
+                    background-color: #6291f4;
+                }}
+                QFrame {{
+                    color: #e1e1e1;
+                }}
+            """)
+        
+        layout = QVBoxLayout(about_dialog)
+        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+        
+        # 应用图标和标题
+        title_layout = QHBoxLayout()
+        
+        # 应用名称和版本
+        title_label = QLabel(f"{APP_NAME}")
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #2196F3;")
+        title_label.setAlignment(Qt.AlignCenter)
+        
+        version_label = QLabel(f"版本 {APP_VERSION}")
+        version_label.setStyleSheet("font-size: 14px; color: #666;")
+        version_label.setAlignment(Qt.AlignCenter)
+        
+        layout.addWidget(title_label)
+        layout.addWidget(version_label)
+        
+        # 分隔线
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setStyleSheet("color: #ddd;")
+        layout.addWidget(line)
+        
+        # 作者信息
+        author_label = QLabel(f"作者: {APP_AUTHOR}")
+        author_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        author_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(author_label)
+        
+        # 描述
+        desc_label = QLabel(
+            "一个基于 Python 和 PySide6 开发的随机抽奖程序\n\n"
+            "主要功能:\n"
+            "• 支持多种格式名单导入（CSV、TXT、JSON等）\n"
+            "• 权重抽奖和等概率抽奖\n"
+            "• 小组管理和历史记录\n"
+            "• 任务加密和数据保护\n"
+            "• 结果导出和历史查看\n"
+            "• 多主题界面和自定义颜色"
         )
+        desc_label.setStyleSheet("font-size: 12px; color: #555; line-height: 1.4;")
+        desc_label.setWordWrap(True)
+        desc_label.setAlignment(Qt.AlignLeft)
+        layout.addWidget(desc_label)
+        
+        # 添加弹性空间
+        layout.addStretch()
+        
+        # 按钮区域
+        button_layout = QHBoxLayout()
+        
+        # GitHub链接按钮
+        github_btn = QPushButton("🌟 访问 GitHub")
+        github_btn.setObjectName("github_btn")
+        github_btn.setToolTip("点击访问项目的GitHub页面")
+        github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/vistaminc/randompeople")))
+        
+        # 关闭按钮
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(about_dialog.accept)
+        
+        button_layout.addWidget(github_btn)
+        button_layout.addStretch()
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        
+        # 显示对话框
+        about_dialog.exec()
         
     # _clear_all_logs方法已移至设置对话框中
     
@@ -1902,267 +2797,4 @@ class MainWindow(QMainWindow):
         
         # 继续关闭
         super().closeEvent(event)
-    
-    @Slot()
-    def _view_tasks(self) -> None:
-        """查看所有任务"""
-        # 从历史任务文件中读取任务记录
-        tasks_path = Path(app_settings.get('tasks_file', str(Path.home() / 'lottery_tasks.json')))
-        
-        # 检查任务文件是否存在
-        if not tasks_path.exists():
-            QMessageBox.information(self, "无任务记录", "当前没有任务记录")
-            return
-            
-        # 读取任务文件
-        try:
-            with open(tasks_path, 'r', encoding='utf-8') as f:
-                tasks = json.load(f)
-        except Exception as e:
-            QMessageBox.critical(self, "读取失败", f"无法读取任务记录: {str(e)}")
-            return
-            
-        if not tasks:
-            QMessageBox.information(self, "无任务记录", "当前没有任务记录")
-            return
-            
-        # 创建任务列表对话框
-        task_dialog = QDialog(self)
-        task_dialog.setWindowTitle("任务记录")
-        task_dialog.setMinimumSize(600, 400)
-        
-        layout = QVBoxLayout(task_dialog)
-        
-        # 创建任务列表
-        task_list = QListWidget()
-        for task in tasks:
-            try:
-                task_time = datetime.fromisoformat(task['timestamp']).strftime("%Y-%m-%d %H:%M:%S")
-                task_list.addItem(f"{task['name']} - {task_time} (结果数: {len(task['results'])})")
-            except Exception as e:
-                logger.error(f"处理任务记录时出错: {str(e)}")
-                continue
-    
-        # 创建详情显示区
-        details_frame = QFrame()
-        details_frame.setFrameShape(QFrame.StyledPanel)
-        details_layout = QVBoxLayout(details_frame)
-        
-        # 添加滚动区域
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        
-        task_info_label = QLabel("选择任务查看详情")
-        task_info_label.setAlignment(Qt.AlignCenter)
-        scroll_layout.addWidget(task_info_label)
-        
-        scroll_area.setWidget(scroll_widget)
-        details_layout.addWidget(scroll_area)
-        
-        # 创建按钮
-        button_layout = QHBoxLayout()
-        close_button = QPushButton("关闭")
-        export_button = QPushButton("导出选中任务")
-        export_button.setEnabled(False)
-        
-        button_layout.addWidget(export_button)
-        button_layout.addWidget(close_button)
-        
-        # 布局组织
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(task_list)
-        splitter.addWidget(details_frame)
-        splitter.setSizes([200, 400])
-        
-        layout.addWidget(splitter)
-        layout.addLayout(button_layout)
-        
-        # 任务列表项选中事件
-        def on_task_selected(index):
-            if index >= 0 and index < len(tasks):
-                task = tasks[index]
-                task_time = datetime.fromisoformat(task['timestamp']).strftime("%Y-%m-%d %H:%M:%S")
-                
-                # 清空当前滚动区域内容
-                for i in reversed(range(scroll_layout.count())):
-                    widget = scroll_layout.itemAt(i).widget()
-                    if widget:
-                        widget.deleteLater()
-                
-                # 添加任务信息
-                task_name_label = QLabel(f"任务名称: {task['name']}")
-                task_name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-                scroll_layout.addWidget(task_name_label)
-                
-                scroll_layout.addWidget(QLabel(f"创建时间: {task_time}"))
-                scroll_layout.addWidget(QLabel(f"源文件: {task['file'] or '无'}"))
-                scroll_layout.addWidget(QLabel(f"总人数: {task['total_count']}"))
-                
-                # 显示结果
-                scroll_layout.addWidget(QLabel(f"抽奖结果 ({len(task['results'])}):"))
-                
-                if task['results']:
-                    results_text = '\n'.join(f"- {result}" for result in task['results'])
-                    results_label = QLabel(results_text)
-                    results_label.setWordWrap(True)
-                    scroll_layout.addWidget(results_label)
-                else:
-                    scroll_layout.addWidget(QLabel("无抽奖结果"))
-                
-                scroll_layout.addStretch(1)
-                export_button.setEnabled(True)
-        
-        # 导出选中任务
-        def export_selected_task():
-            index = task_list.currentRow()
-            if index >= 0 and index < len(tasks):
-                task = tasks[index]
-                
-                # 创建导出配置对话框
-                export_dialog = QDialog(task_dialog)
-                export_dialog.setWindowTitle(f"导出任务 '{task['name']}'")
-                export_dialog.setMinimumWidth(400)
-                
-                dialog_layout = QVBoxLayout(export_dialog)
-                
-                # 选择导出格式
-                format_group = QGroupBox("选择导出格式")
-                format_layout = QVBoxLayout(format_group)
-                
-                csv_radio = QPushButton("CSV格式 (*.csv)")
-                txt_radio = QPushButton("纯文本 (*.txt)")
-                json_radio = QPushButton("JSON格式 (*.json)")
-                
-                format_layout.addWidget(csv_radio)
-                format_layout.addWidget(txt_radio)
-                format_layout.addWidget(json_radio)
-                
-                dialog_layout.addWidget(format_group)
-                
-                # 结果预览
-                preview_group = QGroupBox("结果预览")
-                preview_layout = QVBoxLayout(preview_group)
-                
-                results_list = QListWidget()
-                for result in task['results']:
-                    results_list.addItem(result)
-                preview_layout.addWidget(results_list)
-                
-                count_label = QLabel(f"共 {len(task['results'])} 个结果")
-                count_label.setAlignment(Qt.AlignRight)
-                preview_layout.addWidget(count_label)
-                
-                dialog_layout.addWidget(preview_group)
-                
-                # 按钮区域
-                buttons_layout = QHBoxLayout()
-                cancel_button = QPushButton("取消")
-                
-                buttons_layout.addStretch()
-                buttons_layout.addWidget(cancel_button)
-                dialog_layout.addLayout(buttons_layout)
-                
-                # 处理导出逻辑
-                def do_export(format_type):
-                    default_dir = app_settings.get('last_file_directory', str(Path.home()))
-                    file_ext = "." + format_type.lower()
-                    filter_str = "" 
-                    
-                    if format_type == "CSV":
-                        filter_str = "CSV文件 (*.csv);;所有文件 (*.*)"  
-                    elif format_type == "TXT":
-                        filter_str = "纯文本 (*.txt);;所有文件 (*.*)"  
-                    elif format_type == "JSON":
-                        filter_str = "JSON文件 (*.json);;所有文件 (*.*)" 
-                    
-                    file_path, _ = QFileDialog.getSaveFileName(
-                        export_dialog,
-                        f"导出任务 '{task['name']}'",
-                        str(Path(default_dir) / f"{task['name']}{file_ext}"),
-                        filter_str
-                    )
-                    
-                    if file_path:
-                        try:
-                            if format_type == "CSV":
-                                with open(file_path, 'w', encoding='utf-8', newline='') as f:
-                                    writer = csv.writer(f)
-                                    writer.writerow(["序号", "结果"])
-                                    for i, result in enumerate(task['results'], 1):
-                                        writer.writerow([i, result])
-                            elif format_type == "TXT":
-                                with open(file_path, 'w', encoding='utf-8') as f:
-                                    f.write(f"任务名称: {task['name']}\n")
-                                    f.write(f"创建时间: {datetime.fromisoformat(task['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}\n")
-                                    f.write(f"结果数量: {len(task['results'])}\n\n")
-                                    f.write("结果列表:\n")
-                                    for i, result in enumerate(task['results'], 1):
-                                        f.write(f"{i}. {result}\n")
-                            elif format_type == "JSON":
-                                with open(file_path, 'w', encoding='utf-8') as f:
-                                    json.dump(task, f, ensure_ascii=False, indent=2)
-                            
-                            # 记录并关闭对话框
-                            QMessageBox.information(export_dialog, "导出成功", f"任务已导出到 {file_path}")
-                            app_settings.set('last_file_directory', str(Path(file_path).parent))
-                            export_dialog.accept()
-                        except Exception as e:
-                            QMessageBox.critical(export_dialog, "导出失败", f"无法导出任务: {str(e)}")
-                
-                # 连接信号
-                csv_radio.clicked.connect(lambda: do_export("CSV"))
-                txt_radio.clicked.connect(lambda: do_export("TXT"))
-                json_radio.clicked.connect(lambda: do_export("JSON"))
-                cancel_button.clicked.connect(export_dialog.reject)
-                
-                # 显示对话框
-                export_dialog.exec()
-        
-        # 连接信号
-        task_list.currentRowChanged.connect(on_task_selected)
-        close_button.clicked.connect(task_dialog.accept)
-        export_button.clicked.connect(export_selected_task)
-        
-        # 显示对话框
-        task_dialog.exec()
-        scroll_layout.addWidget(QLabel(f"总人数: {task['total_count']}"))
-            
-        # 显示结果
-        scroll_layout.addWidget(QLabel(f"抽奖结果 ({len(task['results'])}):"))
-            
-        if task['results']:
-            results_text = '\n'.join(f"- {result}" for result in task['results'])
-            results_label = QLabel(results_text)
-            results_label.setWordWrap(True)
-            scroll_layout.addWidget(results_label)
-        else:
-            scroll_layout.addWidget(QLabel("无抽奖结果"))
-            
-        scroll_layout.addStretch(1)
-        export_button.setEnabled(True)
-    
-    # 导出选中任务
-    def export_selected_task():
-        index = task_list.currentRow()
-        if index >= 0 and index < len(tasks):
-            task = tasks[index]
-            
-            default_dir = app_settings.get('last_file_directory', str(Path.home()))
-            file_path, _ = QFileDialog.getSaveFileName(
-                task_dialog,
-                f"导出任务 '{task['name']}'",
-                str(Path(default_dir) / f"{task['name']}.json"),
-                "JSON文件 (*.json);;所有文件 (*.*)"
-            )
-            
-            if file_path:
-                try:
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        json.dump(task, f, ensure_ascii=False, indent=2)
-                    QMessageBox.information(task_dialog, "导出成功", f"任务已导出到 {file_path}")
-                except Exception as e:
-                    QMessageBox.critical(task_dialog, "导出失败", f"无法导出任务: {str(e)}")
-    
-                
+

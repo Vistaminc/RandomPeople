@@ -29,6 +29,7 @@ class SettingsDialog(QDialog):
 
     # 定义信号
     settings_saved = Signal()  # 设置保存信号
+    themeChanged = Signal()  # 主题变更信号
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         """
@@ -66,7 +67,7 @@ class SettingsDialog(QDialog):
         security_tab = self._create_security_tab()
 
         # 添加选项卡
-        tab_widget.addTab(file_tab, "文件设置")
+        tab_widget.addTab(file_tab, "小组管理")
         tab_widget.addTab(draw_tab, "抽奖设置")
         tab_widget.addTab(ui_tab, "界面设置")
         tab_widget.addTab(custom_tab, "自定义参数")
@@ -94,97 +95,13 @@ class SettingsDialog(QDialog):
 
     def _create_file_tab(self) -> QWidget:
         """
-        创建文件设置选项卡
+        创建小组管理选项卡
 
         Returns:
-            文件设置选项卡部件
+            小组管理选项卡部件
         """
         file_widget = QWidget()
         file_layout = QVBoxLayout(file_widget)
-        
-        # 当前文件组
-        current_group = QGroupBox("当前文件")
-        current_layout = QVBoxLayout(current_group)
-        
-        # 当前文件选择
-        file_selection_layout = QHBoxLayout()
-        self.current_file_edit = QLineEdit()
-        self.current_file_edit.setReadOnly(True)
-        self.current_file_edit.setPlaceholderText("没有选择文件")
-        file_selection_layout.addWidget(self.current_file_edit)
-        
-        self.browse_button = QPushButton("浏览...")
-        self.browse_button.clicked.connect(self._select_name_file)
-        file_selection_layout.addWidget(self.browse_button)
-        
-        current_layout.addLayout(file_selection_layout)
-        
-        file_layout.addWidget(current_group)
-        
-        # 历史文件组
-        history_group = QGroupBox("历史文件")
-        history_layout = QVBoxLayout(history_group)
-        
-        # 本地文件列表
-        local_files_layout = QHBoxLayout()
-        self.local_file_list = QComboBox()
-        self.local_file_list.setMinimumWidth(300)
-        local_files_layout.addWidget(self.local_file_list)
-        
-        load_file_button = QPushButton("加载")
-        load_file_button.clicked.connect(self._load_selected_file)
-        local_files_layout.addWidget(load_file_button)
-        
-        remove_file_button = QPushButton("移除")
-        remove_file_button.clicked.connect(self._remove_local_file)
-        local_files_layout.addWidget(remove_file_button)
-        
-        history_layout.addLayout(local_files_layout)
-        
-        # 添加文件按钮
-        add_file_layout = QHBoxLayout()
-        add_file_button = QPushButton("添加本地文件")
-        add_file_button.clicked.connect(self._add_local_file)
-        add_file_layout.addWidget(add_file_button)
-        add_file_layout.addStretch()
-        
-        history_layout.addLayout(add_file_layout)
-        
-        file_layout.addWidget(history_group)
-        
-        # 远程URL组
-        remote_group = QGroupBox("远程URL")
-        remote_layout = QVBoxLayout(remote_group)
-        
-        # 远程URL列表
-        remote_urls_layout = QHBoxLayout()
-        self.remote_url_list = QComboBox()
-        self.remote_url_list.setMinimumWidth(300)
-        remote_urls_layout.addWidget(self.remote_url_list)
-        
-        load_url_button = QPushButton("加载")
-        load_url_button.clicked.connect(self._load_selected_url)
-        remote_urls_layout.addWidget(load_url_button)
-        
-        remove_url_button = QPushButton("移除")
-        remove_url_button.clicked.connect(self._remove_remote_url)
-        remote_urls_layout.addWidget(remove_url_button)
-        
-        remote_layout.addLayout(remote_urls_layout)
-        
-        # 输入新URL
-        url_input_layout = QHBoxLayout()
-        self.remote_url_input = QLineEdit()
-        self.remote_url_input.setPlaceholderText("输入URL地址")
-        url_input_layout.addWidget(self.remote_url_input)
-        
-        add_url_button = QPushButton("加载URL")
-        add_url_button.clicked.connect(self._load_remote_url)
-        url_input_layout.addWidget(add_url_button)
-        
-        remote_layout.addLayout(url_input_layout)
-        
-        file_layout.addWidget(remote_group)
         
         # 小组管理组
         group_group = QGroupBox("小组管理")
@@ -264,6 +181,16 @@ class SettingsDialog(QDialog):
         sort_layout.addWidget(sort_name_button)
         
         group_detail_layout.addLayout(sort_layout)
+        
+        # 小组选择历史管理
+        history_layout = QHBoxLayout()
+        clear_history_button = QPushButton("清除选择历史")
+        clear_history_button.setToolTip("清除小组选择历史记录，重置选择顺序")
+        clear_history_button.clicked.connect(self._clear_group_selection_history)
+        history_layout.addWidget(clear_history_button)
+        history_layout.addStretch()
+        
+        group_detail_layout.addLayout(history_layout)
         group_detail_layout.addStretch(1)
         
         group_list_layout.addWidget(group_detail_widget, 3)
@@ -583,6 +510,11 @@ class SettingsDialog(QDialog):
         self.last_clean_time_label = QLabel("上次清理时间: 未清理")
         log_layout.addWidget(self.last_clean_time_label)
         
+        # 日志统计信息
+        self.log_stats_label = QLabel("日志统计: 计算中...")
+        self.log_stats_label.setStyleSheet("color: gray; font-size: 10px;")
+        log_layout.addWidget(self.log_stats_label)
+        
         # 添加立即清除所有日志按钮
         clean_btn_layout = QHBoxLayout()
         clean_btn_layout.addStretch()
@@ -595,7 +527,7 @@ class SettingsDialog(QDialog):
         log_layout.addLayout(clean_btn_layout)
         
         # 添加提示信息
-        log_note_label = QLabel("注意: 日志文件存储在程序目录下的 logs 文件夹中")
+        log_note_label = QLabel("注意: 日志文件现在按年月分类存储在 logs/YYYY/YYYY-MM/ 目录中")
         log_note_label.setStyleSheet("color: gray; font-size: 10px;")
         log_layout.addWidget(log_note_label)
         
@@ -608,22 +540,6 @@ class SettingsDialog(QDialog):
     
     def _load_settings(self) -> None:
         """加载现有设置"""
-        # 当前文件
-        current_file = app_settings.get('current_name_file', '')
-        self.current_file_edit.setText(current_file)
-        
-        # 加载本地文件列表
-        local_files = app_settings.get('local_files', [])
-        self.local_file_list.clear()
-        if local_files:
-            self.local_file_list.addItems(local_files)
-        
-        # 加载远程URL列表
-        remote_urls = app_settings.get('remote_urls', [])
-        self.remote_url_list.clear()
-        if remote_urls:
-            self.remote_url_list.addItems(remote_urls)
-            
         # 加载小组列表
         self._load_group_list()
         
@@ -657,6 +573,10 @@ class SettingsDialog(QDialog):
             self.last_clean_time_label.setText(f"上次清理时间: {last_clean_time}")
         else:
             self.last_clean_time_label.setText("上次清理时间: 未清理")
+            
+        # 加载日志统计信息
+        self._update_log_statistics()
+        
         self.speed_slider.setValue(scroll_speed)
         self.speed_spin.setValue(scroll_speed)
         
@@ -749,17 +669,6 @@ class SettingsDialog(QDialog):
     @Slot()
     def _save_settings(self) -> None:
         """保存设置"""
-        # 保存当前文件
-        current_file = self.current_file_edit.text()
-        app_settings.set('current_name_file', current_file)
-        
-        # 保存本地文件列表
-        local_files = [self.local_file_list.item(i).text() for i in range(self.local_file_list.count())]
-        app_settings.set('local_files', local_files)
-        
-        # 保存远程URL列表
-        remote_urls = [self.remote_url_list.item(i).text() for i in range(self.remote_url_list.count())]
-        app_settings.set('remote_urls', remote_urls)
         
         # 保存小组设置
         # 注意：小组设置在每次操作时就已经保存，此处无需重复保存
@@ -871,20 +780,20 @@ class SettingsDialog(QDialog):
             
             # 更新相应的按钮
             if color_type == 'primary_color':
-                self.primary_color_button.setStyleSheet(button_style)
-                self.primary_color_button.setText(color.name())
+                self.primary_color_btn.setStyleSheet(button_style)
+                self.primary_color_btn.setText(color.name())
             elif color_type == 'success_color':
-                self.success_color_button.setStyleSheet(button_style)
-                self.success_color_button.setText(color.name())
+                self.success_color_btn.setStyleSheet(button_style)
+                self.success_color_btn.setText(color.name())
             elif color_type == 'warning_color':
-                self.warning_color_button.setStyleSheet(button_style)
-                self.warning_color_button.setText(color.name())
+                self.warning_color_btn.setStyleSheet(button_style)
+                self.warning_color_btn.setText(color.name())
             elif color_type == 'error_color':
-                self.error_color_button.setStyleSheet(button_style)
-                self.error_color_button.setText(color.name())
+                self.error_color_btn.setStyleSheet(button_style)
+                self.error_color_btn.setText(color.name())
             elif color_type == 'name_color':
-                self.name_color_button.setStyleSheet(button_style)
-                self.name_color_button.setText(color.name())
+                self.name_color_btn.setStyleSheet(button_style)
+                self.name_color_btn.setText(color.name())
             
             # 保存颜色设置
             current_colors[color_type] = color.name()
@@ -916,71 +825,27 @@ class SettingsDialog(QDialog):
             button_style = f"background-color: {color_value}; color: {text_color};"
             
             if color_type == 'primary_color':
-                self.primary_color_button.setStyleSheet(button_style)
-                self.primary_color_button.setText(color_value)
+                self.primary_color_btn.setStyleSheet(button_style)
+                self.primary_color_btn.setText(color_value)
             elif color_type == 'success_color':
-                self.success_color_button.setStyleSheet(button_style)
-                self.success_color_button.setText(color_value)
+                self.success_color_btn.setStyleSheet(button_style)
+                self.success_color_btn.setText(color_value)
             elif color_type == 'warning_color':
-                self.warning_color_button.setStyleSheet(button_style)
-                self.warning_color_button.setText(color_value)
+                self.warning_color_btn.setStyleSheet(button_style)
+                self.warning_color_btn.setText(color_value)
             elif color_type == 'error_color':
-                self.error_color_button.setStyleSheet(button_style)
-                self.error_color_button.setText(color_value)
+                self.error_color_btn.setStyleSheet(button_style)
+                self.error_color_btn.setText(color_value)
             elif color_type == 'text_color':
-                self.text_color_button.setStyleSheet(button_style)
-                self.text_color_button.setText(color_value)
+                # 文本颜色没有对应的按钮，跳过
+                pass
             elif color_type == 'name_color':
-                self.name_color_button.setStyleSheet(button_style)
-                self.name_color_button.setText(color_value)
+                self.name_color_btn.setStyleSheet(button_style)
+                self.name_color_btn.setText(color_value)
         
         # 通知主窗口更新主题
         self.themeChanged.emit()
         QMessageBox.information(self, "重置颜色", "所有颜色已重置为默认值。")
-        # 确认是否要重置颜色
-        reply = QMessageBox.question(
-            self,
-            '确认重置',
-            '确定要重置所有主题颜色设置吗？这将恢复默认颜色。',
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        
-        if reply != QMessageBox.Yes:
-            return
-            
-        # 清空保存的颜色设置
-        app_settings.set('theme_colors', {})
-        
-        # 默认颜色值
-        default_colors = {
-            'primary_color': '#61afef',  # 蓝色
-            'success_color': '#98c379',  # 绿色
-            'warning_color': '#e5c07b',  # 黄色
-            'error_color': '#e06c75'     # 红色
-        }
-        
-        # 更新所有颜色按钮
-        for color_type, color_code in default_colors.items():
-            button_style = f"background-color: {color_code}; color: {'white' if QColor(color_code).lightness() < 128 else 'black'};"
-            
-            if color_type == 'primary_color':
-                self.primary_color_btn.setStyleSheet(button_style)
-                self.primary_color_btn.setText(color_code)
-            elif color_type == 'success_color':
-                self.success_color_btn.setStyleSheet(button_style)
-                self.success_color_btn.setText(color_code)
-            elif color_type == 'warning_color':
-                self.warning_color_btn.setStyleSheet(button_style)
-                self.warning_color_btn.setText(color_code)
-            elif color_type == 'error_color':
-                self.error_color_btn.setStyleSheet(button_style)
-                self.error_color_btn.setText(color_code)
-                
-        # 重置名称颜色按钮（清空，使用主题默认值）
-        self.name_color_btn.setStyleSheet("")
-        self.name_color_btn.setText("")
-        
         logger.debug("重置所有颜色为默认值")
     
     def _select_name_file(self) -> None:
@@ -1182,6 +1047,8 @@ class SettingsDialog(QDialog):
         # 禁用按钮
         self.update_group_button.setEnabled(False)
         self.delete_group_button.setEnabled(False)
+        self.move_up_btn.setEnabled(False)
+        self.move_down_btn.setEnabled(False)
         
         QMessageBox.information(self, "删除成功", f"小组 '{group_to_delete['name']}' 已被删除")
     
@@ -1392,21 +1259,6 @@ class SettingsDialog(QDialog):
                 self.enable_password_check.blockSignals(False)
                 return
                 
-            # 确认是否要禁用密码保护
-            reply = QMessageBox.question(
-                self,
-                '确认禁用',
-                '禁用密码保护后，将不再需要密码即可进入设置界面。确定要禁用吗？',
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            
-            if reply != QMessageBox.Yes:
-                # 用户取消操作，恢复复选框状态
-                self.enable_password_check.blockSignals(True)
-                self.enable_password_check.setChecked(True)
-                self.enable_password_check.blockSignals(False)
-                return
     
     def _set_password(self) -> None:
         """设置或修改密码"""
@@ -1428,6 +1280,23 @@ class SettingsDialog(QDialog):
         if new_password != confirm_password:
             QMessageBox.warning(self, "输入错误", "两次输入的密码不一致")
             return
+            
+        # 设置密码和密码保护状态
+        app_settings.set_password(new_password)
+        app_settings.set_password_protection(True)
+        
+        # 更新UI状态
+        self.enable_password_check.blockSignals(True)
+        self.enable_password_check.setChecked(True)
+        self.enable_password_check.blockSignals(False)
+        
+        # 清空密码输入框
+        self.current_password_input.clear()
+        self.new_password_input.clear()
+        self.confirm_password_input.clear()
+        
+        QMessageBox.information(self, "设置成功", "密码已成功设置")
+        return  # 确保函数在这里结束
             
     def _clean_all_logs(self) -> None:
         """清除所有日志文件"""
@@ -1451,64 +1320,10 @@ class SettingsDialog(QDialog):
                 last_clean_time = app_settings.get_last_log_clean_time()
                 if last_clean_time:
                     self.last_clean_time_label.setText(f"上次清理时间: {last_clean_time}")
+                # 更新日志统计信息
+                self._update_log_statistics()
             else:
                 QMessageBox.warning(self, "清除失败", "清除日志文件时出现问题，请查看控制台输出。")
-            
-        # 设置密码和密码保护状态
-        app_settings.set_password(new_password)
-        app_settings.set_password_protection(True)
-        
-        # 更新UI状态
-        self.enable_password_check.blockSignals(True)
-        self.enable_password_check.setChecked(True)
-        self.enable_password_check.blockSignals(False)
-        
-        # 清空密码输入框
-        self.current_password_input.clear()
-        self.new_password_input.clear()
-        self.confirm_password_input.clear()
-        
-        QMessageBox.information(self, "设置成功", "密码已成功设置")
-        
-    def _reset_theme_colors(self) -> None:
-        """重置为默认颜色"""
-        # 确认是否要重置颜色
-        reply = QMessageBox.question(
-            self,
-            '确认重置',
-            '确定要重置所有主题颜色设置吗？这将恢复默认颜色。',
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        
-        if reply == QMessageBox.Yes:
-            # 重置为默认颜色
-            default_colors = {
-                'primary_color': '#61afef',  # 蓝色
-                'success_color': '#98c379',  # 绿色
-                'warning_color': '#e5c07b',  # 黄色
-                'error_color': '#e06c75',   # 红色
-                'text_color': None,          # 使用主题默认值
-                'name_color': None           # 使用主题默认值
-            }
-            
-            # 更新按钮显示
-            for color_type, color_code in default_colors.items():
-                if color_code:
-                    button = getattr(self, f"{color_type}_btn", None)
-                    if button:
-                        text_color = "white" if QColor(color_code).lightness() < 128 else "black"
-                        button_style = f"background-color: {color_code}; color: {text_color};"
-                        button.setStyleSheet(button_style)
-                        button.setText(color_code)
-                else:
-                    # 文本颜色和名称颜色设为空（使用默认值）
-                    button = getattr(self, f"{color_type}_btn", None)
-                    if button:
-                        button.setStyleSheet("")
-                        button.setText("")
-            
-            logger.debug("重置所有颜色为默认值")
             
     def _load_selected_file(self) -> None:
         """加载选中的本地文件"""
@@ -1656,3 +1471,49 @@ class SettingsDialog(QDialog):
             # 更新路径显示
             self.group_path_edit.setText(file_path)
             logger.debug(f"已选择小组名单文件: {file_path}")
+    
+    def _clear_group_selection_history(self) -> None:
+        """清除小组选择历史记录"""
+        # 显示确认对话框
+        reply = QMessageBox.question(
+            self,
+            "确认清除",
+            "确定要清除小组选择历史记录吗？\n\n这将重置小组的选择顺序和星号标记。",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # 清除历史记录
+            app_settings.clear_group_selection_history()
+            app_settings.set_last_selected_group("")
+            
+            QMessageBox.information(self, "清除完成", "小组选择历史记录已清除。")
+            logger.info("用户清除了小组选择历史记录")
+            
+    def _update_log_statistics(self) -> None:
+        """更新日志统计信息显示"""
+        try:
+            from src.utils.log_utils import get_log_statistics
+            stats = get_log_statistics()
+            
+            if stats['total_files'] == 0:
+                stats_text = "日志统计: 暂无日志文件"
+            else:
+                # 格式化文件大小
+                size_mb = stats['total_size'] / (1024 * 1024)
+                size_text = f"{size_mb:.1f} MB" if size_mb >= 1 else f"{stats['total_size'] / 1024:.1f} KB"
+                
+                # 基本统计信息
+                stats_text = f"日志统计: {stats['total_files']} 个文件, 总大小 {size_text}"
+                
+                # 如果有按月份统计
+                if stats['by_month']:
+                    month_count = len(stats['by_month'])
+                    stats_text += f", 跨 {month_count} 个月份"
+            
+            self.log_stats_label.setText(stats_text)
+            
+        except Exception as e:
+            self.log_stats_label.setText(f"日志统计: 计算失败 - {str(e)}")
+            logger.warning(f"更新日志统计信息失败: {str(e)}")
