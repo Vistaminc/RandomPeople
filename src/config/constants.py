@@ -14,8 +14,8 @@ SOUNDS_DIR = ASSETS_DIR / 'sounds'
 
 # 应用程序相关常量
 APP_NAME = '随机抽奖系统'
-APP_VERSION = '2.0.0'
-APP_AUTHOR = 'WindsurfUser'
+APP_VERSION = '2.1.0'
+APP_AUTHOR = '河南星熠寻光科技有限公司 & Vistamin'
 
 
 # 文件类型相关常量

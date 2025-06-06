@@ -152,7 +152,7 @@ class MainWindow(QMainWindow):
         # 底部是结果显示区
         results_layout = QVBoxLayout()
         
-        results_label = QLabel("抽奖系统-v2.0.1 by Vistamin")
+        results_label = QLabel("抽奖系统-v2.0.1 © copyright 2025 河南星熠寻光科技有限公司 & Vistamin")
         results_label.setAlignment(Qt.AlignCenter)
         results_layout.addWidget(results_label)
         
