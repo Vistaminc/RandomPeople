@@ -2,7 +2,7 @@
 
 # 🌟 StarRandom - 星抽奖系统
 
-<img src="icons/icon.png" width="128" height="128" alt="StarRandom Logo">
+<img src="icons/icon.png" width="128" height="128">
 
 *一个基于 Tauri + Next.js + React 构建的现代化跨平台抽奖应用*
 
