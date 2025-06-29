@@ -1,37 +1,59 @@
-#python
-**/_pycache_/
-*/_pycache_/
-_pycache_/
-*.pyc
+# Dependencies
+node_modules/
+.pnpm-debug.log*
 
-#IDE
-random_config.ini.bak
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
+# Tauri
+/src-tauri/target/
+/src-tauri/Cargo.lock
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
 logs/
 
-# Python
-#----------------------------
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-/__pycache__/
-*/__pycache__/
-*.pyc
-__pycache__/
-*.py[cod]
+# Build outputs
+*.exe
+*.dmg
+*.app
+*.deb
+*.rpm
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Temporary folders
+tmp/
+temp/ 
+
+
+docs-temp/
+coredata/

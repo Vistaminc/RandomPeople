@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "StarRandom",
+  "version": "1.0.7",
+  "identifier": "com.starrandom.app",
+  "build": {
+    "frontendDist": "../out",
+    "devUrl": "http://localhost:3000"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "StarRandom-星抽奖系统",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "maximized": false,
+        "decorations": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "externalBin": [],
+    "copyright": "© 2025 河南星熠寻光科技有限公司 & vistamin. All rights reserved.",
+    "category": "Utility",
+    "shortDescription": "StarRandom-星抽奖系统 - 一个现代化的抽奖应用",
+    "longDescription": "一个基于 Tauri 和 Next.js 构建的现代化抽奖系统，支持多种抽奖模式和自定义配置。"
+  },
+  "plugins": {}
+} 
