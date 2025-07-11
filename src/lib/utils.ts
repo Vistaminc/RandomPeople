@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { invoke } from '@tauri-apps/api/tauri';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -257,4 +258,18 @@ export const formatDate = (date: Date): string => {
     minute: '2-digit',
     second: '2-digit'
   }).format(date)
+}
+
+/**
+ * 检查并申请管理员权限
+ * @returns 如果已经有管理员权限或用户同意申请权限则返回 true，否则返回 false
+ */
+export async function checkAndRequestAdminPrivileges(): Promise<boolean> {
+    try {
+        const result = await invoke<boolean>('request_admin_privileges');
+        return result;
+    } catch (error) {
+        console.error('申请管理员权限失败:', error);
+        return false;
+    }
 } 

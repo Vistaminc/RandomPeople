@@ -47,6 +47,28 @@
     --input: 55 65 81;
     --ring: 59 130 246;
   }
+
+  .light {
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+    --card: 248 250 252;
+    --card-foreground: 15 23 42;
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    --primary: 59 130 246;
+    --primary-foreground: 255 255 255;
+    --secondary: 241 245 249;
+    --secondary-foreground: 15 23 42;
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
+    --accent: 241 245 249;
+    --accent-foreground: 15 23 42;
+    --destructive: 239 68 68;
+    --destructive-foreground: 255 255 255;
+    --border: 226 232 240;
+    --input: 226 232 240;
+    --ring: 59 130 246;
+  }
 }
 
 @layer base {
@@ -92,22 +114,22 @@
   }
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar styles */
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
+  background: #374151;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: #6b7280;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--accent));
+  background: #9ca3af;
 }
 
 /* Range slider styles */
@@ -182,4 +204,321 @@ input[type="range"]::-moz-range-thumb:hover {
 
 .glow-animation {
   animation: glow 2s ease-in-out infinite;
+}
+
+/* 亮色主题特定样式 */
+html.light {
+  background-color: white;
+}
+
+html.light body {
+  background-color: white;
+  color: #0f172a;
+}
+
+/* 亮色主题下的主要背景 */
+html.light .bg-gray-900 {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-gray-800 {
+  background-color: white !important;
+}
+
+html.light .bg-gray-700 {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-gray-600 {
+  background-color: #f1f5f9 !important;
+}
+
+/* 亮色主题下的文字颜色 */
+html.light .text-white {
+  color: #1f2937 !important;
+}
+
+html.light .text-gray-400 {
+  color: #6b7280 !important;
+}
+
+html.light .text-gray-300 {
+  color: #374151 !important;
+}
+
+html.light .text-gray-200 {
+  color: #111827 !important;
+}
+
+html.light .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+/* 亮色主题下的特殊文字颜色 */
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light h5,
+html.light h6 {
+  color: #111827 !important;
+}
+
+html.light .font-bold,
+html.light .font-semibold,
+html.light .font-medium {
+  color: #111827 !important;
+}
+
+/* 亮色主题下的描述性文字 */
+html.light p {
+  color: #374151 !important;
+}
+
+html.light .text-sm {
+  color: #4b5563 !important;
+}
+
+html.light .text-xs {
+  color: #6b7280 !important;
+}
+
+/* 亮色主题下的边框 */
+html.light .border-gray-600 {
+  border-color: #9ca3af !important;
+}
+
+html.light .border-gray-700 {
+  border-color: #d1d5db !important;
+}
+
+html.light .border-gray-500 {
+  border-color: #6b7280 !important;
+}
+
+/* 亮色主题下的选中状态边框 */
+html.light .border-blue-500 {
+  border-color: #3b82f6 !important;
+}
+
+html.light .border-green-500 {
+  border-color: #10b981 !important;
+}
+
+html.light .border-red-400 {
+  border-color: #f87171 !important;
+}
+
+html.light .border-yellow-400 {
+  border-color: #fbbf24 !important;
+}
+
+html.light .border-purple-400 {
+  border-color: #a78bfa !important;
+}
+
+/* 亮色主题下的悬停效果 */
+html.light .hover\:bg-gray-700:hover {
+  background-color: #f3f4f6 !important;
+}
+
+html.light .hover\:bg-gray-800:hover {
+  background-color: #f9fafb !important;
+}
+
+html.light .hover\:bg-gray-800\/20:hover {
+  background-color: rgba(249, 250, 251, 0.2) !important;
+}
+
+/* 亮色主题下的半透明背景 */
+html.light .bg-gray-800\/50 {
+  background-color: rgba(249, 250, 251, 0.9) !important;
+  border: 1px solid rgba(209, 213, 219, 0.8) !important;
+}
+
+html.light .bg-gray-700\/30 {
+  background-color: rgba(243, 244, 246, 0.8) !important;
+  border: 1px solid rgba(209, 213, 219, 0.6) !important;
+}
+
+html.light .bg-gray-700\/50 {
+  background-color: rgba(243, 244, 246, 0.9) !important;
+  border: 1px solid rgba(209, 213, 219, 0.8) !important;
+}
+
+html.light .bg-gray-700\/20 {
+  background-color: rgba(243, 244, 246, 0.7) !important;
+  border: 1px solid rgba(209, 213, 219, 0.5) !important;
+}
+
+/* 亮色主题下的特殊背景色 */
+html.light .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+html.light .bg-green-500\/10 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+html.light .bg-red-400\/10 {
+  background-color: rgba(248, 113, 113, 0.1) !important;
+}
+
+html.light .bg-yellow-400\/10 {
+  background-color: rgba(251, 191, 36, 0.1) !important;
+}
+
+html.light .bg-blue-900\/20 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+/* 亮色主题下的玻璃效果 */
+html.light .glass-effect {
+  backdrop-filter: blur(16px) saturate(180%);
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+}
+
+/* 亮色主题下的输入框 */
+html.light input[type="text"],
+html.light input[type="password"],
+html.light input[type="number"],
+html.light select,
+html.light textarea {
+  background-color: white !important;
+  border-color: #9ca3af !important;
+  color: #111827 !important;
+}
+
+html.light input[type="text"]:focus,
+html.light input[type="password"]:focus,
+html.light input[type="number"]:focus,
+html.light select:focus,
+html.light textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* 亮色主题下的按钮文字颜色 */
+html.light button {
+  color: #111827 !important;
+}
+
+html.light .bg-blue-600 {
+  background-color: #2563eb !important;
+  color: white !important;
+}
+
+html.light .bg-green-600 {
+  background-color: #059669 !important;
+  color: white !important;
+}
+
+html.light .bg-red-600 {
+  background-color: #dc2626 !important;
+  color: white !important;
+}
+
+html.light .text-blue-400,
+html.light .text-green-400,
+html.light .text-red-400,
+html.light .text-yellow-400,
+html.light .text-purple-400,
+html.light .text-orange-400 {
+  opacity: 0.9;
+}
+
+/* 亮色主题下的选项卡 */
+html.light [role="tablist"] button {
+  color: #6b7280 !important;
+}
+
+html.light [role="tablist"] button[data-state="active"] {
+  color: #2563eb !important;
+  background-color: #dbeafe !important;
+}
+
+/* 亮色主题下的卡片和对话框 */
+html.light .lottery-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(226, 232, 240, 0.8) !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 亮色主题下的设置对话框 */
+html.light [class*="Card"] {
+  background-color: white !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* 亮色主题下的抽奖结果区域 */
+html.light .result-display {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+  color: white !important;
+}
+
+/* 亮色主题下的滚动条 */
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 亮色主题下的标签和徽章 */
+html.light .bg-green-600 {
+  background-color: #059669 !important;
+  color: white !important;
+}
+
+html.light .bg-blue-600 {
+  background-color: #2563eb !important;
+  color: white !important;
+}
+
+html.light .bg-red-600 {
+  background-color: #dc2626 !important;
+  color: white !important;
+}
+
+/* 亮色主题下的文本对比度增强 */
+html.light .text-blue-300 {
+  color: #2563eb !important;
+}
+
+html.light .text-yellow-300 {
+  color: #d97706 !important;
+}
+
+html.light .text-red-200 {
+  color: #dc2626 !important;
+}
+
+html.light .text-green-400 {
+  color: #059669 !important;
+}
+
+/* 亮色主题下的警告和错误框 */
+html.light .bg-yellow-900\/20 {
+  background-color: rgba(251, 191, 36, 0.1) !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
+}
+
+html.light .bg-red-900\/20 {
+  background-color: rgba(248, 113, 113, 0.1) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+}
+
+html.light .text-yellow-400 {
+  color: #d97706 !important;
+}
+
+html.light .text-red-400 {
+  color: #dc2626 !important;
 } 

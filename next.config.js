@@ -1,27 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
-  trailingSlash: true,
   images: {
-    unoptimized: true
+    unoptimized: true,
   },
+  // 在生产环境中禁用严格模式
+  reactStrictMode: process.env.NODE_ENV === 'development',
+  // 配置基础路径
+  basePath: '',
+  // 禁用默认的 X-Powered-By 头
+  poweredByHeader: false,
   distDir: 'out',
-  assetPrefix: './',
-  // 确保静态导出正确工作
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-    }
-    return config
-  },
-  // 排除 Tauri 目录避免构建错误
-  typescript: {
-    ignoreBuildErrors: false,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  }
+  assetPrefix: './'
 }
- 
+
 module.exports = nextConfig 

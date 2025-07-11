@@ -1,25 +1,14 @@
 {
-  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capabilities for StarRandom application",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "dialog:default",
-    "fs:default",
-    "shell:default",
-    "store:default",
-    "store:allow-get",
-    "store:allow-set",
-    "store:allow-save",
-    "store:allow-load",
-    "store:allow-clear",
-    "store:allow-delete",
-    "store:allow-entries",
-    "store:allow-has",
-    "store:allow-keys",
-    "store:allow-length",
-    "store:allow-reload",
-    "store:allow-reset"
+    "core:app:default",
+    "core:window:default",
+    "core:path:default",
+    "core:event:default",
+    "updater:default"
   ]
 } 

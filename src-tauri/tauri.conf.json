@@ -1,35 +1,57 @@
 {
-  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "$schema": "./gen/schemas/desktop-schema.json",
+  "identifier": "com.starrandom.app",
   "productName": "StarRandom",
   "version": "1.0.7",
-  "identifier": "com.starrandom.app",
   "build": {
-    "frontendDist": "../out",
-    "devUrl": "http://localhost:3000"
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../out"
   },
   "app": {
+    "security": {
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Capability for the main window",
+          "windows": ["main"],
+          "permissions": [
+            "core:path:default",
+            "core:event:default",
+            "core:window:default",
+            "core:app:default",
+            "core:resources:default",
+            "core:menu:default",
+            "core:tray:default",
+            "shell:default",
+            "store:default"
+          ]
+        }
+      ]
+    },
     "windows": [
       {
         "label": "main",
-        "title": "StarRandom-星抽奖系统",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 800,
-        "minHeight": 600,
-        "resizable": true,
-        "maximized": false,
+        "title": "StarRandom",
+        "width": 800,
+        "height": 600,
+        "visible": true,
         "decorations": true,
-        "center": true
+        "resizable": true,
+        "center": true,
+        "transparent": false,
+        "skipTaskbar": false,
+        "alwaysOnTop": false,
+        "focus": true
       }
-    ],
-    "security": {
-      "csp": null,
-      "capabilities": ["default"]
-    }
+    ]
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "category": "DeveloperTool",
+    "copyright": "",
+    "externalBin": [],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,12 +59,27 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "longDescription": "",
     "resources": [],
-    "externalBin": [],
-    "copyright": "© 2025 河南星熠寻光科技有限公司 & vistamin. All rights reserved.",
-    "category": "Utility",
-    "shortDescription": "StarRandom-星抽奖系统 - 一个现代化的抽奖应用",
-    "longDescription": "一个基于 Tauri 和 Next.js 构建的现代化抽奖系统，支持多种抽奖模式和自定义配置。"
+    "shortDescription": "",
+    "targets": ["msi", "nsis"],
+    "windows": {
+      "allowDowngrades": true,
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": ["en-US", "zh-CN"]
+      }
+    }
   },
-  "plugins": {}
+  "plugins": {
+    "shell": {
+      "open": true
+    },
+    "store": null
+  }
 } 

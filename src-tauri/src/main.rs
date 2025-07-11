@@ -6,6 +6,77 @@ use std::io::Write;
 use std::fs;
 use std::path::PathBuf;
 use chrono::Datelike;
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+use std::process::Command;
+use std::os::windows::process::CommandExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use log;
+use std::sync::Arc;
+use tauri_plugin_shell;
+use tauri_plugin_window_state;
+use tauri_plugin_store;
+use std::time::Duration;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+// 检查是否具有管理员权限
+fn is_admin() -> bool {
+    if let Ok(output) = Command::new("net")
+        .args(&["session"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output() {
+        output.status.success()
+    } else {
+        false
+    }
+}
+
+// 以管理员权限重启应用
+fn restart_as_admin() -> Result<(), Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let exit_code = Command::new("powershell")
+        .args(&[
+            "Start-Process",
+            &format!("'{}'", exe_path.display()),
+            "-Verb",
+            "RunAs",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()?
+        .wait()?;
+
+    if exit_code.success() {
+        std::process::exit(0);
+    }
+    
+    Ok(())
+}
+
+// 检查并申请管理员权限
+#[tauri::command]
+async fn request_admin_privileges(window: tauri::WebviewWindow) -> Result<bool, String> {
+    if is_admin() {
+        return Ok(true);
+    }
+
+    // 显示确认对话框
+    let result = window.app_handle().dialog()
+        .message("此操作需要管理员权限，是否继续？")
+        .title("需要管理员权限")
+        .buttons(MessageDialogButtons::YesNo)
+        .kind(MessageDialogKind::Warning)
+        .blocking_show();
+
+    if result {
+        if let Err(e) = restart_as_admin() {
+            log::error!("以管理员权限重启失败: {}", e);
+            return Err("无法获取管理员权限".to_string());
+        }
+    }
+
+    Ok(false)
+}
 
 // 初始化日志系统
 fn init_logging() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -28,113 +99,83 @@ fn init_logging() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(log_file)
 }
 
-// 记录错误到文件
-fn log_error(message: &str) {
-    if let Ok(log_dir) = std::env::current_dir().map(|d| d.join("logs")) {
-        if let Ok(mut file) = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_dir.join("starandom_debug.log")) {
-            let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S");
-            let _ = writeln!(file, "[{}] ERROR: {}", timestamp, message);
-        }
-    }
-    eprintln!("StarRandom ERROR: {}", message);
-}
-
-// 记录信息到文件
-fn log_info(message: &str) {
-    if let Ok(log_dir) = std::env::current_dir().map(|d| d.join("logs")) {
-        if let Ok(mut file) = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_dir.join("starandom_debug.log")) {
-            let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S");
-            let _ = writeln!(file, "[{}] INFO: {}", timestamp, message);
-        }
-    }
-    println!("StarRandom INFO: {}", message);
-}
-
 // 抽奖命令
 #[tauri::command]
 fn greet(name: &str) -> String {
-    log_info(&format!("执行greet命令，参数: {}", name));
+    log::info!("执行greet命令，参数: {}", name);
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
 // 保存抽奖结果到文件
 #[tauri::command]
 async fn save_lottery_result(app_handle: tauri::AppHandle, result: String) -> Result<(), String> {
-    log_info(&format!("保存抽奖结果: {}", result));
+    log::info!("保存抽奖结果: {}", result);
     
     let app_dir = app_handle.path().app_data_dir().map_err(|e| {
         let error = format!("获取应用数据目录失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error
     })?;
     
     let file_path = app_dir.join("lottery_results.txt");
-    log_info(&format!("保存路径: {:?}", file_path));
+    log::info!("保存路径: {:?}", file_path);
     
     // 确保目录存在
     if let Some(parent) = file_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
             let error = format!("创建目录失败: {}", e);
-            log_error(&error);
+            log::error!("{}", error);
             error.to_string()
         })?;
     }
     
-    // 追加结果到文件
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&file_path)
         .map_err(|e| {
             let error = format!("打开文件失败: {}", e);
-            log_error(&error);
+            log::error!("{}", error);
             error.to_string()
         })?;
     
     let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S");
     writeln!(file, "[{}] {}", timestamp, result).map_err(|e| {
         let error = format!("写入文件失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error.to_string()
     })?;
     
-    log_info("抽奖结果保存成功");
     Ok(())
 }
 
 // 读取抽奖历史
 #[tauri::command]
 async fn load_lottery_history(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
-    log_info("加载抽奖历史");
+    log::info!("加载抽奖历史");
     
     let app_dir = app_handle.path().app_data_dir().map_err(|e| {
         let error = format!("获取应用数据目录失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error
     })?;
     
     let file_path = app_dir.join("lottery_results.txt");
-    log_info(&format!("历史文件路径: {:?}", file_path));
+    log::info!("历史文件路径: {:?}", file_path);
     
     if !file_path.exists() {
-        log_info("历史文件不存在，返回空列表");
+        log::info!("历史文件不存在，返回空列表");
         return Ok(vec![]);
     }
     
     let content = std::fs::read_to_string(&file_path).map_err(|e| {
         let error = format!("读取历史文件失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error.to_string()
     })?;
     
     let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-    log_info(&format!("加载了 {} 条历史记录", lines.len()));
+    log::info!("加载了 {} 条历史记录", lines.len());
     
     Ok(lines)
 }
@@ -144,7 +185,7 @@ async fn load_lottery_history(app_handle: tauri::AppHandle) -> Result<Vec<String
 async fn get_app_paths(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
     use serde_json::json;
     
-    log_info("获取应用程序路径信息");
+    log::info!("获取应用程序路径信息");
     
     let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let app_config_dir = app_handle.path().app_config_dir().map_err(|e| e.to_string())?;
@@ -158,14 +199,14 @@ async fn get_app_paths(app_handle: tauri::AppHandle) -> Result<serde_json::Value
         "configPath": app_config_dir.join("settings.json")
     });
     
-    log_info(&format!("路径信息: {}", paths));
+    log::info!("路径信息: {}", paths);
     Ok(paths)
 }
 
 // 保存应用设置
 #[tauri::command]
 async fn save_settings(app_handle: tauri::AppHandle, settings: serde_json::Value) -> Result<(), String> {
-    log_info(&format!("保存设置: {}", settings));
+    log::info!("保存设置: {}", settings);
     
     let config_dir = app_handle.path().app_config_dir().map_err(|e| e.to_string())?;
     let settings_path = config_dir.join("settings.json");
@@ -178,20 +219,20 @@ async fn save_settings(app_handle: tauri::AppHandle, settings: serde_json::Value
     let settings_str = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
     std::fs::write(&settings_path, settings_str).map_err(|e| e.to_string())?;
     
-    log_info("设置保存成功");
+    log::info!("设置保存成功");
     Ok(())
 }
 
 // 加载应用设置
 #[tauri::command]
 async fn load_settings(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    log_info("加载应用设置");
+    log::info!("加载应用设置");
     
     let config_dir = app_handle.path().app_config_dir().map_err(|e| e.to_string())?;
     let settings_path = config_dir.join("settings.json");
     
     if !settings_path.exists() {
-        log_info("设置文件不存在，返回默认设置");
+        log::info!("设置文件不存在，返回默认设置");
         return Ok(serde_json::json!({
             "theme": "light",
             "autoSave": true,
@@ -202,7 +243,7 @@ async fn load_settings(app_handle: tauri::AppHandle) -> Result<serde_json::Value
     let content = std::fs::read_to_string(&settings_path).map_err(|e| e.to_string())?;
     let settings: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;
     
-    log_info(&format!("加载的设置: {}", settings));
+    log::info!("加载的设置: {}", settings);
     Ok(settings)
 }
 
@@ -211,7 +252,7 @@ async fn load_settings(app_handle: tauri::AppHandle) -> Result<serde_json::Value
 // 保存JSON文件
 #[tauri::command]
 async fn save_json_file(file_path: String, data: String) -> Result<(), String> {
-    log_info(&format!("保存JSON文件: {}", file_path));
+    log::info!("保存JSON文件: {}", file_path);
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let full_path = current_dir.join(&file_path);
@@ -220,7 +261,7 @@ async fn save_json_file(file_path: String, data: String) -> Result<(), String> {
     if let Some(parent) = full_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
             let error = format!("创建目录失败: {}", e);
-            log_error(&error);
+            log::error!("{}", error);
             error
         })?;
     }
@@ -228,34 +269,34 @@ async fn save_json_file(file_path: String, data: String) -> Result<(), String> {
     // 写入文件
     std::fs::write(&full_path, data).map_err(|e| {
         let error = format!("写入JSON文件失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error.to_string()
     })?;
     
-    log_info(&format!("JSON文件保存成功: {:?}", full_path));
+    log::info!("JSON文件保存成功: {:?}", full_path);
     Ok(())
 }
 
 // 加载JSON文件
 #[tauri::command]
 async fn load_json_file(file_path: String) -> Result<String, String> {
-    log_info(&format!("加载JSON文件: {}", file_path));
+    log::info!("加载JSON文件: {}", file_path);
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let full_path = current_dir.join(&file_path);
     
     if !full_path.exists() {
-        log_info(&format!("JSON文件不存在: {:?}", full_path));
+        log::info!("JSON文件不存在: {:?}", full_path);
         return Ok(String::new());
     }
     
     let content = std::fs::read_to_string(&full_path).map_err(|e| {
         let error = format!("读取JSON文件失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error.to_string()
     })?;
     
-    log_info(&format!("JSON文件加载成功: {:?}, 大小: {} 字节", full_path, content.len()));
+    log::info!("JSON文件加载成功: {:?}, 大小: {} 字节", full_path, content.len());
     Ok(content)
 }
 
@@ -270,7 +311,7 @@ async fn file_exists(file_path: String) -> Result<bool, String> {
 // 删除文件
 #[tauri::command]
 async fn delete_file(file_path: String) -> Result<(), String> {
-    log_info(&format!("删除文件: {}", file_path));
+    log::info!("删除文件: {}", file_path);
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let full_path = current_dir.join(&file_path);
@@ -278,13 +319,13 @@ async fn delete_file(file_path: String) -> Result<(), String> {
     if full_path.exists() {
         std::fs::remove_file(&full_path).map_err(|e| {
             let error = format!("删除文件失败: {}", e);
-            log_error(&error);
+            log::error!("{}", error);
             error.to_string()
         })?;
         
-        log_info(&format!("文件删除成功: {:?}", full_path));
+        log::info!("文件删除成功: {:?}", full_path);
     } else {
-        log_info(&format!("文件不存在，无需删除: {:?}", full_path));
+        log::info!("文件不存在，无需删除: {:?}", full_path);
     }
     
     Ok(())
@@ -307,7 +348,7 @@ async fn get_file_size(file_path: String) -> Result<u64, String> {
 // 列出目录内容
 #[tauri::command]
 async fn list_directory(dir_path: String) -> Result<Vec<String>, String> {
-    log_info(&format!("列出目录内容: {}", dir_path));
+    log::info!("列出目录内容: {}", dir_path);
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let full_path = current_dir.join(&dir_path);
@@ -326,7 +367,7 @@ async fn list_directory(dir_path: String) -> Result<Vec<String>, String> {
         }
     }
     
-    log_info(&format!("目录 {:?} 包含 {} 个文件", full_path, files.len()));
+    log::info!("目录 {:?} 包含 {} 个文件", full_path, files.len());
     Ok(files)
 }
 
@@ -344,8 +385,25 @@ async fn get_debug_info() -> Result<serde_json::Value, String> {
         "timestamp": chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
     });
     
-    log_info(&format!("调试信息: {}", debug_info));
+    log::info!("调试信息: {}", debug_info);
     Ok(debug_info)
+}
+
+// 获取当前exe文件路径
+#[tauri::command]
+async fn get_current_exe_path() -> Result<String, String> {
+    log::info!("获取当前exe文件路径");
+    
+    let exe_path = std::env::current_exe().map_err(|e| {
+        let error = format!("获取exe路径失败: {}", e);
+        log::error!("{}", error);
+        error.to_string()
+    })?;
+    
+    let path_str = exe_path.to_string_lossy().to_string();
+    log::info!("当前exe路径: {}", path_str);
+    
+    Ok(path_str)
 }
 
 // 获取应用程序版本和版权信息
@@ -364,7 +422,7 @@ async fn get_app_info() -> Result<serde_json::Value, String> {
         "build_date": chrono::Utc::now().format("%Y-%m-%d").to_string()
     });
     
-    log_info(&format!("应用信息: {}", app_info));
+    log::info!("应用信息: {}", app_info);
     Ok(app_info)
 }
 
@@ -373,7 +431,7 @@ async fn get_app_info() -> Result<serde_json::Value, String> {
 // 保存历史任务到分年月文件夹结构
 #[tauri::command]
 async fn save_history_task(task_data: serde_json::Value) -> Result<(), String> {
-    log_info(&format!("保存历史任务: {}", task_data));
+    log::info!("保存历史任务: {}", task_data);
     
     // 解析任务数据
     let task_id = task_data.get("id")
@@ -392,7 +450,7 @@ async fn save_history_task(task_data: serde_json::Value) -> Result<(), String> {
     let year = datetime.year();
     let month = datetime.month();
     
-    log_info(&format!("解析时间: {}年{}月", year, month));
+    log::info!("解析时间: {}年{}月", year, month);
     
     // 生成文件名（使用任务名称）
     let clean_name = task_name
@@ -410,7 +468,7 @@ async fn save_history_task(task_data: serde_json::Value) -> Result<(), String> {
     // 确保目录存在
     std::fs::create_dir_all(&month_dir).map_err(|e| {
         let error = format!("创建年月目录失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error
     })?;
     
@@ -428,11 +486,11 @@ async fn save_history_task(task_data: serde_json::Value) -> Result<(), String> {
     
     std::fs::write(&file_path, task_file_content).map_err(|e| {
         let error = format!("写入任务文件失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error
     })?;
     
-    log_info(&format!("任务文件保存成功: {:?}", file_path));
+    log::info!("任务文件保存成功: {:?}", file_path);
     
     // 更新history.json索引
     let history_index_path = current_dir.join("coredata").join("history.json");
@@ -462,10 +520,10 @@ async fn save_history_task(task_data: serde_json::Value) -> Result<(), String> {
         item.get("id").and_then(|v| v.as_str()) == Some(task_id)
     }) {
         history_index[pos] = index_entry;
-        log_info("更新现有历史记录索引");
+        log::info!("更新现有历史记录索引");
     } else {
         history_index.insert(0, index_entry);
-        log_info("添加新历史记录索引");
+        log::info!("添加新历史记录索引");
     }
     
     // 保留最近100个记录
@@ -477,24 +535,24 @@ async fn save_history_task(task_data: serde_json::Value) -> Result<(), String> {
     
     std::fs::write(&history_index_path, index_content).map_err(|e| {
         let error = format!("保存历史索引失败: {}", e);
-        log_error(&error);
+        log::error!("{}", error);
         error
     })?;
     
-    log_info(&format!("历史记录索引已更新，总数: {}", history_index.len()));
+    log::info!("历史记录索引已更新，总数: {}", history_index.len());
     Ok(())
 }
 
 // 获取历史记录数据
 #[tauri::command]
 async fn get_history_data() -> Result<Vec<serde_json::Value>, String> {
-    log_info("获取历史记录数据");
+    log::info!("获取历史记录数据");
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let history_index_path = current_dir.join("coredata").join("history.json");
     
     if !history_index_path.exists() {
-        log_info("历史索引文件不存在，返回空列表");
+        log::info!("历史索引文件不存在，返回空列表");
         return Ok(vec![]);
     }
     
@@ -505,7 +563,7 @@ async fn get_history_data() -> Result<Vec<serde_json::Value>, String> {
     let history_index: Vec<serde_json::Value> = serde_json::from_str(&index_content)
         .unwrap_or_else(|_| vec![]);
     
-    log_info(&format!("从索引加载了 {} 条历史记录", history_index.len()));
+    log::info!("从索引加载了 {} 条历史记录", history_index.len());
     
     let mut history_data = Vec::new();
     
@@ -525,7 +583,7 @@ async fn get_history_data() -> Result<Vec<serde_json::Value>, String> {
                         }
                     }
                     Err(e) => {
-                        log_error(&format!("读取任务文件失败 {}: {}", relative_path, e));
+                        log::error!("读取任务文件失败 {}: {}", relative_path, e);
                     }
                 }
             }
@@ -546,14 +604,14 @@ async fn get_history_data() -> Result<Vec<serde_json::Value>, String> {
         }
     }
     
-    log_info(&format!("返回 {} 条完整历史记录", history_data.len()));
+    log::info!("返回 {} 条完整历史记录", history_data.len());
     Ok(history_data)
 }
 
 // 获取单个历史任务
 #[tauri::command]
 async fn get_history_task(task_id: String) -> Result<Option<serde_json::Value>, String> {
-    log_info(&format!("获取历史任务: {}", task_id));
+    log::info!("获取历史任务: {}", task_id);
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let history_index_path = current_dir.join("coredata").join("history.json");
@@ -582,7 +640,7 @@ async fn get_history_task(task_id: String) -> Result<Option<serde_json::Value>, 
                 
                 if let Ok(task_file_data) = serde_json::from_str::<serde_json::Value>(&task_content) {
                     if let Some(task_data) = task_file_data.get("task-data") {
-                        log_info(&format!("成功加载历史任务: {}", task_id));
+                        log::info!("成功加载历史任务: {}", task_id);
                         return Ok(Some(task_data.clone()));
                     }
                 }
@@ -590,14 +648,14 @@ async fn get_history_task(task_id: String) -> Result<Option<serde_json::Value>, 
         }
     }
     
-    log_info(&format!("未找到历史任务: {}", task_id));
+    log::info!("未找到历史任务: {}", task_id);
     Ok(None)
 }
 
 // 删除历史任务
 #[tauri::command]
 async fn delete_history_task(task_id: String) -> Result<(), String> {
-    log_info(&format!("删除历史任务: {}", task_id));
+    log::info!("删除历史任务: {}", task_id);
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let history_index_path = current_dir.join("coredata").join("history.json");
@@ -624,7 +682,7 @@ async fn delete_history_task(task_id: String) -> Result<(), String> {
                 std::fs::remove_file(&task_file_path).map_err(|e| {
                     format!("删除任务文件失败: {}", e)
                 })?;
-                log_info(&format!("任务文件已删除: {:?}", task_file_path));
+                log::info!("任务文件已删除: {:?}", task_file_path);
             }
         }
     }
@@ -642,14 +700,14 @@ async fn delete_history_task(task_id: String) -> Result<(), String> {
         format!("保存历史索引失败: {}", e)
     })?;
     
-    log_info(&format!("历史任务已删除: {}", task_id));
+    log::info!("历史任务已删除: {}", task_id);
     Ok(())
 }
 
 // 清空所有历史记录
 #[tauri::command]
 async fn clear_history_data() -> Result<(), String> {
-    log_info("清空所有历史记录");
+    log::info!("清空所有历史记录");
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let history_dir = current_dir.join("coredata").join("history");
@@ -670,7 +728,7 @@ async fn clear_history_data() -> Result<(), String> {
                                         if let Some(ext) = file_entry.path().extension() {
                                             if ext == "json" {
                                                 let _ = std::fs::remove_file(file_entry.path());
-                                                log_info(&format!("删除历史文件: {:?}", file_entry.path()));
+                                                log::info!("删除历史文件: {:?}", file_entry.path());
                                             }
                                         }
                                     }
@@ -692,14 +750,14 @@ async fn clear_history_data() -> Result<(), String> {
         format!("保存空索引失败: {}", e)
     })?;
     
-    log_info("所有历史记录已清空");
+    log::info!("所有历史记录已清空");
     Ok(())
 }
 
 // 获取历史记录统计信息
 #[tauri::command]
 async fn get_history_stats() -> Result<serde_json::Value, String> {
-    log_info("获取历史记录统计信息");
+    log::info!("获取历史记录统计信息");
     
     let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
     let history_index_path = current_dir.join("coredata").join("history.json");
@@ -755,64 +813,26 @@ async fn get_history_stats() -> Result<serde_json::Value, String> {
         "months": months
     });
     
-    log_info(&format!("历史记录统计: {}", stats));
+    log::info!("历史记录统计: {}", stats);
     Ok(stats)
 }
 
 fn main() {
-    // 初始化日志
-    match init_logging() {
-        Ok(log_file) => {
-            log_info(&format!("日志系统初始化成功，日志文件: {:?}", log_file));
-        }
-        Err(e) => {
-            eprintln!("日志系统初始化失败: {}", e);
-        }
+    // 初始化日志系统
+    if let Err(e) = init_logging() {
+        eprintln!("日志系统初始化失败: {}", e);
     }
-    
-    log_info("开始构建Tauri应用程序");
-    
-    let result = tauri::Builder::default()
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_fs::init())
-        .setup(|_app| {
-            log_info("执行应用程序setup");
+        .setup(|app| {
+            let main_window = app.get_webview_window("main").unwrap();
             
-            // 检查前端文件
-            let current_dir = std::env::current_dir().unwrap_or_default();
-            let out_dir = current_dir.join("out");
-            let index_file = out_dir.join("index.html");
+            // 设置窗口最小尺寸
+            main_window.set_min_size(Some(tauri::LogicalSize::new(400.0, 300.0))).unwrap();
             
-            log_info(&format!("当前目录: {:?}", current_dir));
-            log_info(&format!("out目录: {:?}", out_dir));
-            log_info(&format!("index.html: {:?}", index_file));
-            log_info(&format!("out目录存在: {}", out_dir.exists()));
-            log_info(&format!("index.html存在: {}", index_file.exists()));
-            
-            if let Ok(entries) = fs::read_dir(&out_dir) {
-                log_info("out目录内容:");
-                for entry in entries.flatten() {
-                    log_info(&format!("  - {:?}", entry.path()));
-                }
-            }
-            
-            // 确保coredata目录存在
-            let coredata_dir = current_dir.join("coredata");
-            if let Err(e) = fs::create_dir_all(&coredata_dir) {
-                log_error(&format!("创建coredata目录失败: {}", e));
-            } else {
-                log_info(&format!("coredata目录已准备: {:?}", coredata_dir));
-            }
-            
-            #[cfg(debug_assertions)] // 只在调试模式下打开开发者工具
-            {
-                log_info("开启开发者工具");
-                if let Some(window) = _app.get_webview_window("main") {
-                window.open_devtools();
-                }
-            }
-            
-            log_info("Setup完成");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -822,62 +842,23 @@ fn main() {
             get_app_paths,
             save_settings,
             load_settings,
-            get_debug_info,
-            get_app_info,
-            // JSON文件存储API
             save_json_file,
             load_json_file,
             file_exists,
             delete_file,
             get_file_size,
             list_directory,
-            // 历史记录管理API
+            get_debug_info,
+            get_current_exe_path,
+            get_app_info,
             save_history_task,
             get_history_data,
             get_history_task,
             delete_history_task,
             clear_history_data,
-            get_history_stats
+            get_history_stats,
+            request_admin_privileges,
         ])
-        .run(tauri::generate_context!());
-    
-    match result {
-        Ok(_) => {
-            log_info("应用程序正常退出");
-        }
-        Err(e) => {
-            log_error(&format!("应用程序运行失败: {}", e));
-            eprintln!("StarRandom 启动失败: {}", e);
-            
-            // 显示错误对话框
-            #[cfg(target_os = "windows")]
-            {
-                use std::ffi::CString;
-                use std::ptr;
-                
-                extern "system" {
-                    fn MessageBoxA(
-                        hwnd: *mut std::ffi::c_void,
-                        text: *const i8,
-                        caption: *const i8,
-                        utype: u32,
-                    ) -> i32;
-                }
-                
-                let message = CString::new(format!("StarRandom启动失败:\n\n{}\n\n请查看logs/starandom_debug.log获取详细信息", e)).unwrap();
-                let title = CString::new("StarRandom 错误").unwrap();
-                
-                unsafe {
-                    MessageBoxA(
-                        ptr::null_mut(),
-                        message.as_ptr(),
-                        title.as_ptr(),
-                        0x00000010, // MB_ICONERROR
-                    );
-                }
-            }
-            
-            std::process::exit(1);
-        }
-    }
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 } 

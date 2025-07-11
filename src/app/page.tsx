@@ -2,11 +2,14 @@
 
 import React, { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react'
 import { Upload, Settings, Shuffle, X, FileText, Users, ChevronRight, ChevronUp, ChevronDown, Edit, Save, RotateCcw, Trash2, Bug, Trash, Shield, Moon, Sun, Smartphone, Monitor, MonitorSpeaker, Download, FileUp, AlertTriangle, Dice6, Lock, FileDown, History, Clock, ArrowUpDown, GraduationCap, Globe } from 'lucide-react'
+import { listen } from '@tauri-apps/api/event'
 import { ToastManager } from '@/components/ui/toast'
 import { useConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/hooks/useToast'
 import { testTauriConnection } from '@/lib/tauri'
 import { getAllSettings } from '@/lib/officialStore'
+import { encryptPassword, verifyPassword, isPasswordEncrypted } from '@/lib/crypto'
+
 
 // 优化的Button组件
 const Button = memo(({ children, onClick, variant = 'default', size = 'default', disabled = false, loading = false, className = '' }: any) => {
@@ -434,11 +437,11 @@ const DrawCountConfig = memo(({
   )
   
   return (
-    <div className="bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-600/50 backdrop-blur-sm p-4 mb-6 shadow-lg">
+    <div className="bg-gray-800/50 light:bg-white rounded-xl border border-gray-600/50 light:border-blue-500 backdrop-blur-sm p-4 mb-6 shadow-lg">
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-        <div className="flex items-center gap-2 text-blue-400">
+        <div className="flex items-center gap-2 text-blue-400 light:text-blue-600">
           <Users className="w-4 h-4" />
-          <span className="text-white font-medium text-sm">抽奖人数</span>
+          <span className="text-white font-medium text-sm light:text-gray-800">抽奖人数</span>
         </div>
         
         <div className="flex items-center gap-3">
@@ -447,7 +450,7 @@ const DrawCountConfig = memo(({
             onClick={handleDecrease}
             variant="outline"
             size="icon"
-            className="text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 w-8 h-8 rounded-lg transition-all duration-200"
+            className="text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 w-8 h-8 rounded-lg transition-all duration-200 light:text-blue-600 light:border-blue-500 light:hover:bg-blue-50 light:hover:border-blue-600"
             disabled={drawCount <= 1}
           >
             <span className="text-sm font-bold">-</span>
@@ -461,9 +464,9 @@ const DrawCountConfig = memo(({
               max={maxValue}
               value={drawCount}
               onChange={handleInputChange}
-              className="w-14 px-2 py-1 bg-gray-700/80 border border-gray-500 rounded-lg text-white text-center font-bold text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+              className="w-14 px-2 py-1 bg-gray-700/80 border border-gray-500 rounded-lg text-white text-center font-bold text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield] light:bg-white light:border-gray-400 light:text-gray-800 light:focus:ring-blue-500 light:focus:border-blue-600"
             />
-            <span className="text-gray-400 text-sm">人</span>
+            <span className="text-gray-400 text-sm light:text-gray-600">人</span>
           </div>
           
           {/* 增加按钮 */}
@@ -471,7 +474,7 @@ const DrawCountConfig = memo(({
             onClick={handleIncrease}
             variant="outline"
             size="icon"
-            className="text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 w-8 h-8 rounded-lg transition-all duration-200"
+            className="text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 w-8 h-8 rounded-lg transition-all duration-200 light:text-blue-600 light:border-blue-500 light:hover:bg-blue-50 light:hover:border-blue-600"
             disabled={!allowRepeat && drawCount >= names.length}
           >
             <span className="text-sm font-bold">+</span>
@@ -488,8 +491,8 @@ const DrawCountConfig = memo(({
                 variant={drawCount === num ? "default" : "outline"}
                 size="sm"
                 className={drawCount === num 
-                  ? "bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 text-xs h-7 min-w-[2rem]" 
-                  : "text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 px-2 py-1 text-xs h-7 min-w-[2rem] transition-all duration-200"
+                  ? "bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 text-xs h-7 min-w-[2rem] light:bg-blue-600 light:hover:bg-blue-700" 
+                  : "text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 px-2 py-1 text-xs h-7 min-w-[2rem] transition-all duration-200 light:text-blue-600 light:border-blue-500 light:hover:bg-blue-50 light:hover:border-blue-600"
                 }
               >
                 {num}
@@ -501,8 +504,8 @@ const DrawCountConfig = memo(({
                 variant={drawCount === Math.floor(names.length / 2) ? "default" : "outline"}
                 size="sm"
                 className={drawCount === Math.floor(names.length / 2)
-                  ? "bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 text-xs h-7 min-w-[2.5rem]"
-                  : "text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 px-2 py-1 text-xs h-7 min-w-[2.5rem] transition-all duration-200"
+                  ? "bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 text-xs h-7 min-w-[2.5rem] light:bg-blue-600 light:hover:bg-blue-700"
+                  : "text-blue-400 border-blue-400/60 hover:bg-blue-400/10 hover:border-blue-400 px-2 py-1 text-xs h-7 min-w-[2.5rem] transition-all duration-200 light:text-blue-600 light:border-blue-500 light:hover:bg-blue-50 light:hover:border-blue-600"
                 }
               >
                 半数
@@ -513,7 +516,7 @@ const DrawCountConfig = memo(({
         
         {/* 状态提示 */}
         {names.length > 0 && (
-          <div className="text-xs text-gray-500 bg-gray-700/30 px-2 py-1 rounded-md">
+          <div className="text-xs text-gray-500 bg-gray-700/30 px-2 py-1 rounded-md light:text-gray-600 light:bg-gray-100">
             {statusText}
           </div>
         )}
@@ -581,7 +584,7 @@ const ControlButtonsArea = memo(({
         title: '密码验证',
         message: '请输入设置密码以进入设置界面：',
         onConfirm: (inputPassword: string) => {
-          if (inputPassword === settings.password) {
+          if (verifyPassword(inputPassword, settings.password)) {
             setShowSettings(true)
           } else {
             // 密码错误，显示错误提示
@@ -606,7 +609,7 @@ const ControlButtonsArea = memo(({
         <select
           value={selectedGroupId}
           onChange={handleGroupChange}
-          className="px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-w-[200px]"
+          className="px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-w-[200px] light:bg-white light:border-blue-500 light:text-gray-800 light:focus:ring-blue-500 light:focus:border-blue-600"
         >
           <option value="">选择抽奖小组...</option>
           {groupOptions}
@@ -651,7 +654,7 @@ const ControlButtonsArea = memo(({
       <Button
         onClick={() => setShowHistoryDialog(true)}
         variant="outline"
-        className="text-purple-400 border-purple-400 hover:text-purple-300 hover:border-purple-300 px-4 py-2 h-12"
+        className="text-purple-400 border-purple-400 hover:text-purple-300 hover:border-purple-300 px-4 py-2 h-12 !text-purple-400 !border-purple-400 !hover:text-purple-300 !hover:border-purple-300"
         title="历史任务"
       >
         <History className="w-6 h-6 mr-2" />
@@ -672,7 +675,7 @@ const ControlButtonsArea = memo(({
   )
 })
 
-export default function LotteryPage() {
+export default function Home() {
   // 文件上传状态
   const [currentFile, setCurrentFile] = useState<string>('')
   const [names, setNames] = useState<string[]>([])
@@ -835,12 +838,14 @@ export default function LotteryPage() {
       return
     }
 
+    // 在开始新抽奖时重置上次结果
+    setWinner('')
+    setWinners([])
+    
     setIsDrawing(true)
     setCanStop(false)
     setIsAnimationStopped(false)
     isAnimationStoppedRef.current = false // 重置ref状态
-    setWinner('')
-    setWinners([])
 
     // 简洁的滚动动画
     const animationDuration = settings.animationDuration
@@ -1160,7 +1165,7 @@ export default function LotteryPage() {
       setCurrentFile(group.name)
       setSelectedGroupId(groupId)
       engineRef.current.loadData(group.names, group.weights)
-      setWinner('')
+      // 不再清空获奖者信息，保持显示上次抽奖结果
       
       // 🔧 保存最后选择的小组ID到localStorage
       saveLastSelectedGroup(groupId)
@@ -1903,6 +1908,16 @@ export default function LotteryPage() {
       try {
         console.log('🚀 应用启动 - 开始初始化数据...');
         
+        // 🔧 窗口状态管理：恢复窗口大小和位置（仅在 Tauri 环境下）
+        try {
+          const { restoreStateCurrent, StateFlags } = await import('@tauri-apps/plugin-window-state')
+          await restoreStateCurrent(StateFlags.ALL)
+          console.log('✅ 窗口状态已恢复')
+        } catch (windowError) {
+          // Tauri 环境不可用时静默跳过
+          console.log('💡 窗口状态功能在非 Tauri 环境下跳过')
+        }
+        
         // 🔧 第一步：直接从storeway.json读取存储方式，不使用storageManager
         const { getStorageWayConfig } = await import('@/lib/officialStore');
         const currentStorageMethod = await getStorageWayConfig();
@@ -1970,6 +1985,39 @@ export default function LotteryPage() {
         await loadHistoryTasks();
         
         console.log('🎉 数据初始化完成!');
+        
+        // 🔧 设置窗口状态自动保存（仅在 Tauri 环境下）
+        try {
+          const { saveWindowState, StateFlags } = await import('@tauri-apps/plugin-window-state')
+          
+          // 窗口大小变化时保存状态
+          const saveWindowStateHandler = async () => {
+            try {
+              await saveWindowState(StateFlags.ALL)
+              console.log('✅ 窗口状态已保存')
+            } catch (saveError) {
+              console.warn('⚠️ 窗口状态保存失败:', saveError)
+            }
+          }
+          
+          // 添加事件监听器
+          window.addEventListener('resize', saveWindowStateHandler)
+          window.addEventListener('beforeunload', saveWindowStateHandler)
+          
+          // 定期保存窗口状态（每30秒）
+          const saveInterval = setInterval(saveWindowStateHandler, 30000)
+          
+          // 清理函数
+          return () => {
+            window.removeEventListener('resize', saveWindowStateHandler)
+            window.removeEventListener('beforeunload', saveWindowStateHandler)
+            clearInterval(saveInterval)
+          }
+        } catch (windowStateError) {
+          // Tauri 环境不可用时静默跳过
+          console.log('💡 窗口状态自动保存功能在非 Tauri 环境下跳过')
+        }
+        
       } catch (error) {
         console.error('❌ 初始化数据失败:', error);
         // 出错时回退到localStorage
@@ -2053,6 +2101,17 @@ export default function LotteryPage() {
     initializeData();
   }, [])
 
+  // 监听主题变化，应用到HTML根元素
+  useEffect(() => {
+    if (settings.theme === 'light') {
+      document.documentElement.classList.remove('dark')
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+      document.documentElement.classList.add('dark')
+    }
+  }, [settings.theme])
+
   // 小组数据变化时保存
   useEffect(() => {
     if (groups.length > 0) {
@@ -2079,7 +2138,12 @@ export default function LotteryPage() {
 
   // 设置数据变化时保存
   useEffect(() => {
-    saveSettingsToStorage()
+    // 延迟保存，避免初始化时的多次保存
+    const timeoutId = setTimeout(() => {
+      saveSettingsToStorage()
+    }, 300)
+    
+    return () => clearTimeout(timeoutId)
   }, [settings, drawMode, allowRepeat, saveSettingsToStorage])
 
   // 存储方案切换处理
@@ -2150,13 +2214,13 @@ export default function LotteryPage() {
   // 简化的自动保存机制
   useEffect(() => {
     if (groups.length > 0) {
-      saveGroupsToStorage(groups)
+      const timeoutId = setTimeout(() => {
+        saveGroupsToStorage(groups)
+      }, 300)
+      
+      return () => clearTimeout(timeoutId)
     }
   }, [groups, saveGroupsToStorage])
-
-  useEffect(() => {
-    saveSettingsToStorage()
-  }, [settings, drawMode, allowRepeat, saveSettingsToStorage])
 
 
 
@@ -2195,6 +2259,24 @@ export default function LotteryPage() {
       }
     }
   }, [names.length, isDrawing, canStop, stopLottery, allowRepeat, drawCount, engineRef, startLottery])
+
+  useEffect(() => {
+    // 监听窗口大小调整事件
+    const unlisten = listen('window-resize', () => {
+      // 触发重新渲染
+      window.requestAnimationFrame(() => {
+        // 强制重新计算布局
+        document.body.style.minHeight = '100vh';
+        setTimeout(() => {
+          document.body.style.minHeight = '';
+        }, 0);
+      });
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -2292,6 +2374,7 @@ export default function LotteryPage() {
                   <TabsTrigger value="ui">界面设置</TabsTrigger>
                   <TabsTrigger value="advanced">高级设置</TabsTrigger>
                   <TabsTrigger value="security">安全设置</TabsTrigger>
+                  <TabsTrigger value="about">关于</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="groups">
@@ -2705,7 +2788,40 @@ export default function LotteryPage() {
                         </label>
                         <select
                           value={settings.theme}
-                          onChange={(e) => updateSetting('theme', e.target.value)}
+                          onChange={async (e) => {
+                            const newTheme = e.target.value
+                            updateSetting('theme', newTheme)
+                            
+                            // 更新 HTML 根元素的主题类
+                            if (newTheme === 'light') {
+                              document.documentElement.classList.remove('dark')
+                              document.documentElement.classList.add('light')
+                            } else {
+                              document.documentElement.classList.remove('light')
+                              document.documentElement.classList.add('dark')
+                            }
+                            
+                            // 立即保存设置到存储
+                            try {
+                              const { getStorageWayConfig, saveAllSettings } = await import('@/lib/officialStore')
+                              const storageMethod = await getStorageWayConfig()
+                              
+                              const updatedSettings = { ...settings, theme: newTheme }
+                              
+                              if (storageMethod === 'tauriStore') {
+                                await saveAllSettings({
+                                  'lottery-settings': updatedSettings,
+                                  'lottery-settings-updated': new Date().toISOString()
+                                })
+                                console.log('✅ 主题设置已立即保存到Tauri Store:', newTheme)
+                              } else {
+                                localStorage.setItem('lottery-settings', JSON.stringify(updatedSettings))
+                                console.log('✅ 主题设置已立即保存到localStorage:', newTheme)
+                              }
+                            } catch (error) {
+                              console.error('❌ 保存主题设置失败:', error)
+                            }
+                          }}
                           className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         >
                           <option value="dark">暗色主题</option>
@@ -2996,13 +3112,14 @@ export default function LotteryPage() {
                       
                       {settings.passwordProtection && (
                         <div className="space-y-4 ml-4 p-4 bg-gray-700/20 rounded-lg border border-gray-600/30">
-                          {/* 当前密码 */}
+                          {/* 当前密码 - 只有在已设置密码时才显示 */}
                           {settings.password && (
                             <div className="space-y-2">
                               <label className="block text-sm font-medium text-gray-200">当前密码</label>
                               <input
                                 type="password"
-                                placeholder="输入当前密码（如果已设置）"
+                                id="currentPasswordInput"
+                                placeholder="输入当前密码以验证身份"
                                 className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                               />
                             </div>
@@ -3011,13 +3128,12 @@ export default function LotteryPage() {
                           {/* 新密码 */}
                           <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-200">新密码</label>
-                          <input
-                            type="password"
-                            value={settings.password}
-                            onChange={(e) => updateSetting('password', e.target.value)}
+                            <input
+                              type="password"
+                              id="newPasswordInput"
                               placeholder="输入新密码"
                               className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
-                          />
+                            />
                           </div>
                           
                           {/* 确认密码 */}
@@ -3025,6 +3141,7 @@ export default function LotteryPage() {
                             <label className="block text-sm font-medium text-gray-200">确认密码</label>
                             <input
                               type="password"
+                              id="confirmPasswordInput"
                               placeholder="再次输入新密码"
                               className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                             />
@@ -3034,20 +3151,14 @@ export default function LotteryPage() {
                           <div className="pt-2">
                                                       <Button
                             onClick={() => {
-                              // 验证密码设置
-                              const currentPasswordInput = document.querySelector('input[placeholder="输入当前密码（如果已设置）"]') as HTMLInputElement
-                              const newPasswordInput = document.querySelector('input[placeholder="输入新密码"]') as HTMLInputElement
-                              const confirmPasswordInput = document.querySelector('input[placeholder="再次输入新密码"]') as HTMLInputElement
+                              // 获取输入框的值
+                              const currentPasswordInput = document.getElementById('currentPasswordInput') as HTMLInputElement
+                              const newPasswordInput = document.getElementById('newPasswordInput') as HTMLInputElement
+                              const confirmPasswordInput = document.getElementById('confirmPasswordInput') as HTMLInputElement
                               
                               const currentPassword = currentPasswordInput?.value || ''
                               const newPassword = newPasswordInput?.value || ''
                               const confirmPassword = confirmPasswordInput?.value || ''
-                              
-                              // 如果已经设置了密码，需要验证当前密码
-                              if (settings.password && currentPassword !== settings.password) {
-                                alert('当前密码不正确')
-                                return
-                              }
                               
                               // 验证新密码
                               if (!newPassword) {
@@ -3060,15 +3171,25 @@ export default function LotteryPage() {
                                 return
                               }
                               
-                              // 保存新密码
-                              updateSetting('password', newPassword)
+                              // 如果已经设置了密码，需要验证当前密码
+                              if (settings.password) {
+                                // 验证当前密码
+                                if (!verifyPassword(currentPassword, settings.password)) {
+                                  alert('当前密码不正确')
+                                  return
+                                }
+                              }
+                              
+                              // 加密并保存新密码
+                              const encryptedPassword = encryptPassword(newPassword)
+                              updateSetting('password', encryptedPassword)
                               
                               // 清空输入框
                               if (currentPasswordInput) currentPasswordInput.value = ''
                               if (newPasswordInput) newPasswordInput.value = ''
                               if (confirmPasswordInput) confirmPasswordInput.value = ''
                               
-                              showSuccess('密码设置成功')
+                              showSuccess(settings.password ? '密码修改成功' : '密码设置成功')
                             }}
                             className="bg-blue-600 hover:bg-blue-700"
                           >
@@ -3194,6 +3315,332 @@ export default function LotteryPage() {
                           <Trash2 className="w-4 h-4 mr-2" />
                           清除所有数据
                         </Button>
+                      </div>
+                      
+                      {/* 希沃 LuckyRandom 替换功能 */}
+                      <div className="border-t border-gray-700 pt-6">
+                        <div className="bg-purple-900/20 border border-purple-700 rounded-lg p-4 mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                            <span className="text-purple-300 font-medium">希沃集成</span>
+                          </div>
+                          <p className="text-sm text-purple-200 mb-2">一键替换希沃白板中的 LuckyRandom 应用</p>
+                          <p className="text-xs text-purple-300">将备份原有程序并创建 StarRandom 快捷方式，需要管理员权限</p>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const { Command } = await import('@tauri-apps/plugin-shell')
+                                const { invoke } = await import('@tauri-apps/api/core')
+                                
+                                showConfirm({
+                                  title: '确认替换希沃 LuckyRandom',
+                                  message: '此操作将:\n1. 备份原有的 LuckyRandom.exe 为 LuckyRandom.exe.bak\n2. 创建 StarRandom 的快捷方式替换原程序\n\n路径: C:\\Program Files (x86)\\Seewo\\MiniApps\\LuckyRandom\n\n需要管理员权限，确定继续吗？',
+                                  confirmText: '替换',
+                                  onConfirm: async () => {
+                                    try {
+                                      const seewoPath = 'C:\\Program Files (x86)\\Seewo\\MiniApps\\LuckyRandom'
+                                      
+                                      // 获取当前应用路径
+                                      const currentExePath = await invoke('get_current_exe_path') as string
+                                      
+                                      // 执行替换操作
+                                      const replaceCommand = Command.create('replace-seewo-lucky', [
+                                        'powershell', '-Command',
+                                        `Start-Process powershell -ArgumentList '-Command "` +
+                                        `cd \\"${seewoPath}\\"; ` +
+                                        `if (Test-Path \\"LuckyRandom.exe\\") { ` +
+                                        `  if (!(Test-Path \\"LuckyRandom.exe.bak\\")) { ` +
+                                        `    Copy-Item \\"LuckyRandom.exe\\" \\"LuckyRandom.exe.bak\\" ` +
+                                        `  }; ` +
+                                        `  Remove-Item \\"LuckyRandom.exe\\" -Force ` +
+                                        `}; ` +
+                                        `$WshShell = New-Object -comObject WScript.Shell; ` +
+                                        `$Shortcut = $WshShell.CreateShortcut(\\"${seewoPath}\\\\LuckyRandom.exe\\"); ` +
+                                        `$Shortcut.TargetPath = \\"${currentExePath}\\"; ` +
+                                        `$Shortcut.Save()\\"' -Verb RunAs`
+                                      ])
+                                      
+                                      await replaceCommand.execute()
+                                      showSuccess('希沃 LuckyRandom 替换成功！现在在希沃白板中打开 LuckyRandom 将启动 StarRandom')
+                                    } catch (error) {
+                                      console.error('替换失败:', error)
+                                      showError('替换失败：' + (error as Error).message + '\n请确保以管理员身份运行此程序')
+                                    }
+                                  }
+                                })
+                              } catch (error) {
+                                showError('功能初始化失败：' + (error as Error).message)
+                              }
+                            }}
+                            variant="outline"
+                            className="w-full text-purple-400 border-purple-400 hover:bg-purple-400/10 h-12"
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            替换希沃 LuckyRandom
+                          </Button>
+                          
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const { Command } = await import('@tauri-apps/plugin-shell')
+                                
+                                showConfirm({
+                                  title: '确认恢复希沃 LuckyRandom',
+                                  message: '此操作将恢复原有的 LuckyRandom.exe 程序，需要管理员权限，确定继续吗？',
+                                  confirmText: '恢复',
+                                  onConfirm: async () => {
+                                    try {
+                                      const seewoPath = 'C:\\Program Files (x86)\\Seewo\\MiniApps\\LuckyRandom'
+                                      
+                                      const restoreCommand = Command.create('restore-seewo-lucky', [
+                                        'powershell', '-Command',
+                                        `Start-Process powershell -ArgumentList '-Command "` +
+                                        `cd \\"${seewoPath}\\"; ` +
+                                        `if (Test-Path \\"LuckyRandom.exe.bak\\") { ` +
+                                        `  if (Test-Path \\"LuckyRandom.exe\\") { ` +
+                                        `    Remove-Item \\"LuckyRandom.exe\\" -Force ` +
+                                        `  }; ` +
+                                        `  Copy-Item \\"LuckyRandom.exe.bak\\" \\"LuckyRandom.exe\\" ` +
+                                        `} else { ` +
+                                        `  Write-Host \\"备份文件不存在，无法恢复\\" ` +
+                                        `}\\"' -Verb RunAs`
+                                      ])
+                                      
+                                      await restoreCommand.execute()
+                                      showSuccess('希沃 LuckyRandom 已恢复为原始程序')
+                                    } catch (error) {
+                                      console.error('恢复失败:', error)
+                                      showError('恢复失败：' + (error as Error).message + '\n请确保以管理员身份运行此程序')
+                                    }
+                                  }
+                                })
+                              } catch (error) {
+                                showError('功能初始化失败：' + (error as Error).message)
+                              }
+                            }}
+                            variant="outline"
+                            className="w-full text-gray-400 border-gray-400 hover:bg-gray-400/10 h-12"
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            恢复原始 LuckyRandom
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="about">
+                  <div className="space-y-8">
+                    <div className="border-b border-gray-700 pb-4">
+                      <h3 className="text-xl font-semibold text-white mb-2">关于 StarRandom</h3>
+                      <p className="text-gray-400 text-sm">现代化的抽奖系统 - 简单、快速、公平</p>
+                    </div>
+                    
+                    {/* 应用信息 */}
+                    <div className="bg-gray-800/50 rounded-lg p-6 space-y-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl overflow-hidden">
+                          <img src="/icon.png" alt="StarRandom" className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <h4 className="text-2xl font-bold text-white">StarRandom</h4>
+                          <p className="text-gray-400">现代化抽奖系统</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">版本号：</span>
+                            <span className="text-blue-400 font-mono">v1.0.7</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">构建日期：</span>
+                            <span className="text-gray-400 font-mono">2025-06-29</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">运行环境：</span>
+                            <span className="text-gray-400">
+                              {typeof window !== 'undefined' && (window as any).__TAURI__ ? 'Tauri App' : 'Web Browser'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">技术栈：</span>
+                            <span className="text-gray-400">React + TypeScript</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">UI 框架：</span>
+                            <span className="text-gray-400">Tailwind CSS</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">桌面框架：</span>
+                            <span className="text-gray-400">Tauri</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 功能特性 */}
+                    <div className="bg-gray-800/50 rounded-lg p-6 space-y-4">
+                      <h4 className="text-lg font-medium text-gray-200 flex items-center gap-2">
+                        <span className="text-yellow-400">⭐</span>
+                        核心特性
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg">
+                          <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
+                          <div>
+                            <h5 className="text-gray-200 font-medium">多种抽奖模式</h5>
+                            <p className="text-sm text-gray-400 mt-1">支持等概率和权重抽奖</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full mt-2"></div>
+                          <div>
+                            <h5 className="text-gray-200 font-medium">小组管理</h5>
+                            <p className="text-sm text-gray-400 mt-1">创建和管理多个抽奖小组</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg">
+                          <div className="w-2 h-2 bg-purple-400 rounded-full mt-2"></div>
+                          <div>
+                            <h5 className="text-gray-200 font-medium">历史记录</h5>
+                            <p className="text-sm text-gray-400 mt-1">完整的抽奖历史和结果管理</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg">
+                          <div className="w-2 h-2 bg-orange-400 rounded-full mt-2"></div>
+                          <div>
+                            <h5 className="text-gray-200 font-medium">数据安全</h5>
+                            <p className="text-sm text-gray-400 mt-1">密码保护和数据备份</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg">
+                          <div className="w-2 h-2 bg-red-400 rounded-full mt-2"></div>
+                          <div>
+                            <h5 className="text-gray-200 font-medium">多格式支持</h5>
+                            <p className="text-sm text-gray-400 mt-1">CSV、TXT、JSON 文件导入</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg">
+                          <div className="w-2 h-2 bg-teal-400 rounded-full mt-2"></div>
+                          <div>
+                            <h5 className="text-gray-200 font-medium">跨平台</h5>
+                            <p className="text-sm text-gray-400 mt-1">支持 Windows、macOS、Linux</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 开发信息 */}
+                    <div className="bg-gray-800/50 rounded-lg p-6 space-y-4">
+                      <h4 className="text-lg font-medium text-gray-200 flex items-center gap-2">
+                        <span className="text-blue-400">💻</span>
+                        开发信息
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300">开发者：</span>
+                          <span className="text-gray-400">StarRandom Team</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300">开源协议：</span>
+                          <span className="text-gray-400">GPL-V3.0</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300">项目地址：</span>
+                          <a href="https://github.com/vistaminc/StarRandom" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors text-sm">
+                            GitHub Repository
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 系统信息 */}
+                    <div className="bg-gray-800/50 rounded-lg p-6 space-y-4">
+                      <h4 className="text-lg font-medium text-gray-200 flex items-center gap-2">
+                        <span className="text-green-400">🔧</span>
+                        系统信息
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">浏览器：</span>
+                            <span className="text-gray-400 font-mono text-sm">
+                              {typeof navigator !== 'undefined' ? navigator.userAgent.match(/Chrome|Firefox|Safari|Edge/)?.[0] || 'Unknown' : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">分辨率：</span>
+                            <span className="text-gray-400 font-mono text-sm">
+                              {typeof window !== 'undefined' ? `${window.screen.width}×${window.screen.height}` : 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">当前主题：</span>
+                            <span className="text-gray-400 capitalize">
+                              {settings.theme === 'dark' ? '暗色主题' : '亮色主题'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-300">存储方式：</span>
+                            <span className="text-gray-400">
+                              {settings.storageMethod === 'tauriStore' ? 'Tauri Store' : 'Local Storage'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 智教合作项目 */}
+                    <div className="bg-gray-800/50 rounded-lg p-6 space-y-4">
+                      <h4 className="text-lg font-medium text-gray-200 flex items-center gap-2">
+                        <span className="text-cyan-400">🤝</span>
+                        智教合作项目
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                          <div>
+                            <h5 className="text-gray-200 font-medium">Seewo-HugoAura</h5>
+                            <p className="text-sm text-gray-400 mt-1">下一代希沃管家注入式修改/破解方案</p>
+                          </div>
+                          <a 
+                            href="https://github.com/HugoAura/Seewo-HugoAura" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-cyan-400 hover:text-cyan-300 transition-colors text-sm px-3 py-1 border border-cyan-400 rounded-lg hover:bg-cyan-400/10"
+                          >
+                            访问项目
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 感谢信息 */}
+                    <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-600/30 rounded-lg p-6 text-center">
+                      <h4 className="text-lg font-medium text-gray-200 mb-3">
+                        <span className="text-purple-400">💝</span> 感谢使用 StarRandom
+                      </h4>
+                      <p className="text-gray-300 mb-4">
+                        如果这个工具对您有帮助，欢迎给我们反馈和建议
+                      </p>
+                      <div className="flex justify-center gap-4 text-sm">
+                        <span className="text-gray-400">版权所有 © 2025 StarRandom Team & 河南星熠寻光科技有限公司 & vistamin </span>
                       </div>
                     </div>
                   </div>
@@ -3342,13 +3789,12 @@ export default function LotteryPage() {
                                       title: '编辑保护验证',
                                       message: '该任务已设置编辑保护，请输入编辑密码：',
                                       onConfirm: (password) => {
-                                    if (password !== selectedTask.edit_password) {
-                                      showError('编辑密码不正确')
-                                      return
-                                    }
+                                        if (!verifyPassword(password, selectedTask.edit_password)) {
+                                          showError('编辑密码不正确')
+                                          return
+                                        }
                                         setEditingHistoryTask(selectedTask.id)
                                         setEditingResults(selectedTask.results.join('\n'))
-                                        setShowPasswordDialogState(false)
                                       },
                                       onCancel: () => {
                                         setShowPasswordDialogState(false)
