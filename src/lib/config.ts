@@ -226,7 +226,7 @@ const DEFAULT_CONFIG: AppConfig = {
     },
     window_size: {
       width: 1200,
-      height: 800
+      height: 750
     },
     window_position: {
       x: -1,

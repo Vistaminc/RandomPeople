@@ -831,7 +831,7 @@ fn main() {
             let main_window = app.get_webview_window("main").unwrap();
             
             // 设置窗口最小尺寸
-            main_window.set_min_size(Some(tauri::LogicalSize::new(400.0, 300.0))).unwrap();
+            main_window.set_min_size(Some(tauri::LogicalSize::new(800.0, 600.0))).unwrap();
             
             Ok(())
         })

@@ -34,8 +34,8 @@
       {
         "label": "main",
         "title": "StarRandom",
-        "width": 800,
-        "height": 600,
+        "width": 1200,
+        "height": 750,
         "visible": true,
         "decorations": true,
         "resizable": true,
