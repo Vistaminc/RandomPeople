@@ -11,21 +11,3 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true  # Automatically strip symbols from the binary. 
-
-
-[source.crates-io]
-
-replace-with='rsproxy'
-
-[source.rsproxy]
-
-registry="https://rsproxy.cn/crates.io-index"
-
-[registries.rsproxy]
-
-index = "https://rsproxy.cn/crates.io-index"
-
-[net]
-
-git-fetch-with-cli = true
-
